@@ -1,5 +1,5 @@
 
-# setup the database -- modified TPC-H for more intersting demo later
+# set up the database -- modified TPC-H for more interesting demo later
 /cockroach/cockroach sql --url "postgresql://root@localhost:26257/?sslmode=disable" <<EOF
 create database if not exists test;
 set database=test;

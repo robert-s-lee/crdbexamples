@@ -16,7 +16,7 @@ docker run -d \
 -e COCKROACH_SCAN_INTERVAL=1m \
 -p 26257:26257 -p 8080:8080  \
 -v "${PWD}/cockroach-data/roach1:/cockroach/cockroach-data"  \
-cockroachdb/cockroach:${tag} start --insecure --locality=region=east
+cockroachdb/cockroach:${tag} start --insecure --locality=region=east --vmodule=allocator=5,replicate_queue=5
 
 docker network connect centralnet eastcrdb
 docker exec -t eastcrdb tc qdisc add dev eth1 root netem delay 40ms
@@ -33,7 +33,7 @@ docker run -d \
 --net=centralnet \
 -e COCKROACH_SCAN_INTERVAL=1m \
 -v "${PWD}/cockroach-data/roach2:/cockroach/cockroach-data" \
-cockroachdb/cockroach:${tag} start --insecure --locality=region=central --join=eastcrdb
+cockroachdb/cockroach:${tag} start --insecure --locality=region=central --join=eastcrdb --vmodule=allocator=5,replicate_queue=5
 
 docker network connect eastnet centralcrdb
 docker exec -t centralcrdb tc qdisc add dev eth1 root netem delay 40ms
@@ -49,7 +49,7 @@ docker run -d \
 --net=westnet \
 -e COCKROACH_SCAN_INTERVAL=1m \
 -v "${PWD}/cockroach-data/roach3:/cockroach/cockroach-data" \
-cockroachdb/cockroach:${tag} start --insecure --locality=region=west --join=eastcrdb
+cockroachdb/cockroach:${tag} start --insecure --locality=region=west --join=eastcrdb --vmodule=allocator=5,replicate_queue=5
 
 docker network connect centralnet westcrdb
 docker exec -t westcrdb tc qdisc add dev eth1 root netem delay 40ms
@@ -80,7 +80,7 @@ docker exec -t eastcrdb bash -c "/cockroach/02-maa-setup-schema.sh"
 
 cat <<EOF
 Run on of the following
-docker exec -t eastcrdb bash -c "/cockroach/03-maa-demo.sh"
-docker exec -t centralcrdb bash -c "/cockroach/03-maa-demo.sh"
-docker exec -t westcrdb bash -c "/cockroach/03-maa-demo.sh"
+docker exec -it eastcrdb bash -c "/cockroach/03-maa-demo.sh"
+docker exec -it centralcrdb bash -c "/cockroach/03-maa-demo.sh"
+docker exec -it westcrdb bash -c "/cockroach/03-maa-demo.sh"
 EOF
