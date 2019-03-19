@@ -1,0 +1,19 @@
+graph TB
+BEGIN
+S1["SELECT id, balance <br/> FROM account <br/>WHERE id IN (account1, account2)<br/>-- result used by client"]
+S2["INSERT INTO transfer (id) <br/>VALUES (transfer_id) <br/>RETURNING NOTHING;"]
+S3["INSERT INTO transfer_leg <br/>(account_id, amount, running_balance, txn_id) <br/>VALUES (account1,-amount,balance1-amount,transfer_id) <br/>RETURNING NOTHING;"]
+S4["INSERT INTO transfer_leg <br/>(account_id, amount, running_balance, txn_id) <br/>VALUES (account2,amount,balance2+amount,transfer_id) <br/>RETURNING NOTHING;"]
+S5["UPDATE account <br/>SET balance = balance1-amount <br/>WHERE id = account1 <br/>RETURNING NOTHING;"]
+S6["UPDATE account <br/>SET balance = balance2+amount <br/>WHERE id = account2 <br/>RETURNING NOTHING;"]
+COMMIT
+BEGIN-->S1
+S1-->S2
+S2-->S3
+S2-->S4
+S1-->S5
+S5-->S6
+S3-->COMMIT
+S4-->COMMIT
+S6-->COMMIT
+

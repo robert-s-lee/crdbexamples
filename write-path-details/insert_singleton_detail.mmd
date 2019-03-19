@@ -1,0 +1,23 @@
+%% mmdc -i insert_singleton_detail.mmd -o insert_singleton_detail.png
+sequenceDiagram
+    participant Client
+    participant Node1
+    participant Node2
+    participant Node3
+    Client->>+Node1: insert int x (1,'A')
+Note Over Client,Node1: Client connects to any node
+Note Over Node1,Node2: node2 is range leaseholder and raft leader
+    Node1->>+Node2:put /t/primary/1/val/'A' 
+    deactivate Node1
+    par parallel write to raft leader
+        Node2->>-Node2:sync to disk 
+    and parallel to raft followers
+        Node2->>+Node1: 1) put /t/primary/1/val/'A'
+        Node1->>-Node1:sync to disk
+    and parallel to raft followers
+        Node2->>+Node3: 2) put /t/primary/1/val/'A'
+        Node3->>-Node3:sync to disk
+    end
+Note Over Node1,Node3: done when majority of the followers and leader complete sync to disk
+Node1->>Client: commit
+

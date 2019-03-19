@@ -1,0 +1,19 @@
+%% mmdc -i insert-multirow-batch.mmd -o insert-multirow-batch.png
+sequenceDiagram
+    participant Client
+    participant CRDB Gateway
+    participant CRDB KV Range 1 to 3
+    participant CRDB KV Range 4 to 6
+    participant CRDB KV Range 7 to 9
+    Client->>CRDB Gateway: insert into t (key,val) values (1,'A'),(2,'B'),(3,'C'),(4,'D'),(5,'E'),(6,'F'),(7,'G'),(8,'H'),(9,'I'),
+par Parallel to leaseholder
+    CRDB Gateway->>CRDB KV Range 1 to 3: /t/primary/1/val 'A', /t/primary/2/val 'B', /t/primary/3/val 'C'
+and
+    CRDB Gateway->>CRDB KV Range 4 to 6: /t/primary/4/val 'D', /t/primary/5/val 'E', /t/primary/6/val 'F'
+and
+    CRDB Gateway->>CRDB KV Range 7 to 9: /t/primary/7/val 'G', /t/primary/8/val 'H', /t/primary/9/val 'I'
+end
+    Note Over CRDB KV Range 1 to 3,CRDB KV Range 7 to 9: done when all of the leaseholders complete
+    CRDB Gateway->>CRDB KV Range 1 to 3:  write commit intent
+    CRDB Gateway->>Client: Commit
+

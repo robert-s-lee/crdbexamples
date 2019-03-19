@@ -1,0 +1,11 @@
+%% mmdc -i insert_singleton_ideal.mmd -o insert_singleton_ideal.png
+sequenceDiagram
+    participant Client
+    participant Node1
+    participant Node2
+    participant Node3
+    Client->>+Node1: selet * from x where a=1
+Note Over Client,Node1: Client connects to any node
+Note Right of Node1: node1 is range leaseholder and raft leader
+    Node1->>+Node1:get /t/primary/1/val/'A' 
+

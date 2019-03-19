@@ -1,0 +1,7 @@
+graph LR
+A[Client] -->|Put/Get| B{Conflict?}
+B -->|no conflict| R[Result]
+B-->|conflict|C{PushTxn}
+C -->|priority diff| D[Abort Lower Priority]
+C -->|write skew| E[push TxnA's timestamp forward]
+C -->|default| F[enter queue]

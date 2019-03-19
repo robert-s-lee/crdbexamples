@@ -1,0 +1,29 @@
+%% mmdc -i insert_singleton_ideal_east_2.x.mmd -o insert_singleton_ideal_east_2.x.png
+sequenceDiagram
+    participant Client West
+    participant Node1
+    participant Node2
+    participant Node3
+    participant Client East
+    Client East->>+Node3: insert into t (1,'A')
+Note Over Node1,Node3: Client connects to any node
+Note Right of Node1: node1 is range leaseholder and raft leader
+    Node3->>+Node1:put /t/primary/1/val/'A' 
+    deactivate Node3
+    par parallel write to raft leader (New in 2.0)
+        Node1->>Node1:sync to disk 
+    and parallel to raft followers
+        Node1->>+Node2: 1) put /t/primary/1/val/'A'
+        Node2->>Node2:sync to disk
+        Node2->>-Node1: ok
+    and parallel to raft followers
+        Node1->>+Node3: 2) put /t/primary/1/val/'A'
+        Node3->>Node3:sync to disk
+        Node3->>-Node1: ok
+    end
+Note Over Node1,Node3: done when MAJORITY of the followers and the leader complete sync to disk
+Node1->>Node3:put ok
+deactivate Node1
+Node3->>Client East: commit
+
+

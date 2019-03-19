@@ -1,0 +1,9 @@
+.node {
+  stroke-width: 4px;
+  stroke: gray;
+  fill: #dddddd;
+}
+
+.background {
+  fill: transparent;
+}
