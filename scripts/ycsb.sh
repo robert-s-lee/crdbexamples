@@ -152,7 +152,7 @@ _ycsb_part() {
   local comma=""
   local part_begin=$part_min
   local part_end
-  part_keys="${@:-`cockroach node ls --insecure | tail -n +2 | sort`}"
+  part_keys="${@:-`cockroach node ls --insecure | tail -n +2 | sort -g`}"
   for p in $part_keys; do
     part_end=`printf "'user%03d'" $(($p+1))`
     sql="$sql $comma PARTITION user$p VALUES FROM ($part_begin) TO ($part_end)"
