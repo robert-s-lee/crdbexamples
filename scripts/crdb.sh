@@ -202,6 +202,7 @@ _crdb_maps_gcp() {
 	'region', 'europe-west3', 50.110922, 8.682127
 	'region', 'europe-west4', 53.4386, 6.8355
 	'region', 'europe-west2', 51.507351, -0.127758
+	'region', 'europe-west6', 47.3769, 8.5417
 	'region', 'asia-east1', 24.0717, 120.5624
 	'region', 'asia-northeast1', 35.689487, 139.691706
 	'region', 'asia-southeast1', 1.352083, 103.819836
