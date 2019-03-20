@@ -1,4 +1,4 @@
-export f=robert-ycsb
+export f=robert-ycsb-3d2z5r
 export ver=v19.1.0-beta.20190318
 export COCKROACH_DEV_ORG='Cockroach Labs Training'
 export COCKROACH_DEV_LICENSE='crl-0-EIDA4OgGGAEiF0NvY2tyb2FjaCBMYWJzIFRyYWluaW5n'
@@ -20,16 +20,17 @@ roachprod run $f -- 'curl -O --location  https://jdbc.postgresql.org/download/po
 roachprod run $f -- 'curl -O --location https://github.com/robert-s-lee/crdbexamples/raw/master/scripts/crdb.sh; curl -O --location https://github.com/robert-s-lee/crdbexamples/raw/master/scripts/ycsb.sh; chmod a+x *.sh'
 
 # setup the schema with default 5 way replica 
-roachprod run $f:1 -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_init; _ycsb_part; _ycsb_lease"
+roachprod run $f:1 -- "PATH=~/:\$PATH; cockroach sql --insecure -e \"SET CLUSTER SETTING cluster.organization='$COCKROACH_DEV_ORG'; SET CLUSTER SETTING enterprise.license='$COCKROACH_DEV_LICENSE'\""
+roachprod run $f:1 -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_replica=5 _ycsb_init; _ycsb_part; _ycsb_lease"
 
 # load initial dataset 1,000,000 from each node, 16 thread each node
-roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=1000000 _ycsb_node=\`hostname | awk -F- '{print (\$3-1)}'\`; _ycsb_threads=16 _ycsb load a"
+roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=1000000 _ycsb_node=\`hostname | awk -F- '{print (\$NF-1)}'\`; _ycsb_threads=16 _ycsb load a"
 
 # run workload b, 8 thread each node using AOST
-roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=1000000 _ycsb_operationcount=100000 _ycsb_node=\`hostname | awk -F- '{print (\$3-1)}'\`; _ycsb_threads=8 _ycsb_dbdialect=jdbc:cockroach _ycsb run b";
+roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=1000000 _ycsb_operationcount=500000 _ycsb_node=\`hostname | awk -F- '{print (\$NF-1)}'\`; _ycsb_threads=8 _ycsb_dbdialect=jdbc:cockroach _ycsb run b";
 
 # run workload b, 8 thread each node NOT using AOST
-roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=1000000 _ycsb_operationcount=100000 _ycsb_node=\`hostname | awk -F- '{print (\$3-1)}'\`; _ycsb_threads=8 _ycsb_dbdialect=jdbc:postgresql _ycsb run b"
+roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=1000000 _ycsb_operationcount=100000 _ycsb_node=\`hostname | awk -F- '{print (\$NF-1)}'\`; _ycsb_threads=8 _ycsb_dbdialect=jdbc:postgresql _ycsb run b"
 
 # kill any java running
 roachprod run $f -- "pkill -9 java"
