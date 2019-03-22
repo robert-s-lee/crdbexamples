@@ -5,9 +5,10 @@
 #   _crdb_destroy; _crdb cloud=aws,region=us-east-1 cloud=aws,region=ca-central-1 cloud=aws,region=us-west-1
 #   _crdb_destroy; _crdb cloud=gcp,region=us-east1 cloud=gcp,region=us-central1 cloud=gcp,region=us-west1
 
-# shortcuts for aws and gcp
-#   _crdb_destroy; _crdb -c aws eu-west-1a eu-west-1b eu-west-1c eu-west-2a eu-west-2b eu-west-2c eu-central-1a eu-central-1b #ireland, london and frankfurt
-#   _crdb_destroy; _crdb -c gcp europe-west1-b europe-west1-c europe-west1-d europe-west2-a europe-west2-b europe-west2-c europe-west3-a europe-west3-b europe-west3-c
+# shortcuts for aws and gcp ireland, london and frankfurt
+# _crdb_destroy 
+# _crdb -c aws eu-west-1a eu-west-1b eu-west-1c eu-west-2a eu-west-2b eu-west-2c eu-central-1a eu-central-1b
+# _crdb -c gcp europe-west1-b europe-west1-c europe-west1-d europe-west2-a europe-west2-b europe-west2-c europe-west3-a europe-west3-b europe-west3-c
 
 #
 #   _crdb_destroy; _crdb -c gcp europe-west1-b europe-west2-a europe-west3-a europe-west1-c europe-west2-b europe-west3-b europe-west1-d europe-west2-c europe-west3-c
@@ -295,3 +296,32 @@ _crdb_maps_azure() {
 	'region', 'francesouth', 43.8345, 2.1972
 	EOF
 }
+
+_crdb_haproxy() {
+
+local i=1
+cat >haproxy.cfg <<EOF
+global
+  maxconn 4096
+
+defaults
+    mode                tcp
+    # Timeout values should be configured for your specific use.
+    # See: https://cbonte.github.io/haproxy-dconv/1.8/configuration.html#4-timeout%20connect
+    timeout connect     10s
+    timeout client      1m
+    timeout server      1m
+    # TCP keep-alive on client side. Server already enables them.
+    option              clitcpka
+
+listen psql
+    bind :26256
+    mode tcp
+    balance roundrobin
+    option httpchk GET /health?ready=1
+    server cockroach0 localhost:26257 check port 26258
+EOF
+
+cockroach sql --insecure --format csv --host ${_crdb_host:-127.0.0.1} -e "select address from crdb_internal.kv_node_status"| tail -n +2 | sort -g | awk '{print "server cockroach" i " " $0 " check port 26258 backup"; i++}' i=$i  >> haproxy.cfg
+   
+} 
