@@ -247,7 +247,7 @@ _crdb_maps_gcp() {
 	'region', 'us-east4', 37.478397, -76.453077
 	'region', 'us-central1', 42.032974, -93.581543
 	'region', 'us-west1', 43.804133, -120.554201
-	'region', 'us-west2', 34.0522, 118.2437
+	'region', 'us-west2', 34.0522, -118.2437
 	'region', 'northamerica-northeast1', 56.130366, -106.346771
 	'region', 'europe-west1', 50.44816, 3.81886
 	'region', 'europe-west3', 50.110922, 8.682127
