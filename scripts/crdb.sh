@@ -4,10 +4,20 @@
 # examples to setup one instance per region
 #   _crdb_destroy; _crdb cloud=aws,region=us-east-1 cloud=aws,region=ca-central-1 cloud=aws,region=us-west-1
 #   _crdb_destroy; _crdb cloud=gcp,region=us-east1 cloud=gcp,region=us-central1 cloud=gcp,region=us-west1
-#   _crdb_destroy; _crdb cloud=azure,region=eastus cloud=azure,region=centralus cloud=azure,region=westus
+
+# shortcuts for aws and gcp
+#   _crdb_destroy; _crdb -c aws eu-west-1a eu-west-1b eu-west-1c eu-west-2a eu-west-2b eu-west-2c eu-central-1a eu-central-1b #ireland, london and frankfurt
+#   _crdb_destroy; _crdb -c gcp europe-west1-b europe-west1-c europe-west1-d europe-west2-a europe-west2-b europe-west2-c europe-west3-a europe-west3-b europe-west3-c
+
+#
+#   _crdb_destroy; _crdb -c gcp europe-west1-b europe-west2-a europe-west3-a europe-west1-c europe-west2-b europe-west3-b europe-west1-d europe-west2-c europe-west3-c
+#   _crdb_destroy; _crdb -c gcp europe-west1-b europe-west2-a europe-west3-a europe-west4-a europe-west6-a europe-west1-c europe-west2-c europe-west3-b europe-west4-b europe-west6-b 
+
 # examples to setup without locality
 #   _crdb; _crdb; _crdb
 _crdb() {
+  foo_usage() { echo "_crdb: [-c <aws|gce>]" 1>&2; return; }
+
   _crdb_instance=${_crdb_instance:-1}
   local _crdb_port=${_crdb_port:-26257}
   local _crdb_http_port=${_crdb_http_port:-26258}
@@ -18,11 +28,33 @@ _crdb() {
   local _http_port
   local _loc
 
+  local OPTIND c
+  while getopts ":c:" o; do
+    case "${o}" in
+      c)
+        c="${OPTARG}"
+        ;;
+      *)
+        foo_usage
+        ;;
+    esac
+  done
+  shift $((OPTIND-1))
+
   while [ 1 ]; do
     _loc=$1
     _crdb_count=$(($_crdb_instance-1))
     _port=$(($_crdb_port + $_crdb_count * 2))
     _http_port=$(($_crdb_http_port + $_crdb_count * 2))
+
+    # expand aws and gcp az to full cloud=xx,region=xx,az=xx
+    if [ "$c" = "gcp" ]; then
+        _loc=`echo $_loc | awk -F'-' '{print "region=" $1 "-" $2 ",cloud=" c ",az=" $0}' c=$c`
+        echo $_loc
+    elif [ "$c" = "aws" ]; then
+        _loc=`echo $_loc | awk -F'-' '{print "region=" substr($0,1,length($0)-1) ",cloud=" c ",az=" $0}' c=$c`
+        echo $_loc
+    fi
 
     # locality and join command options
     if [ ! -z "$_loc" ]; then _crdb_locality="--locality=$_loc"; fi
@@ -32,12 +64,14 @@ _crdb() {
 
     # start the process
     cockroach start --insecure --port=${_port} --http-port=${_http_port} --store=cockroach-data/${_crdb_instance} --cache=256MiB --background $_crdb_join $_crdb_locality
-    echo "${_port} ${_http_port} $_crdb_join $_crdb_locality" > /tmp/_crdb.pid.${_crdb_instance}
+    echo "${_port}|${_http_port}|${_crdb_instance}|$_crdb_join|$_crdb_locality" > /tmp/_crdb.pid.${_crdb_instance}
 
-    # set the license if available
+    # set the license and map if available
     if [ "$_crdb_instance" = "1" -a ! -z "$COCKROACH_DEV_ORG" -a ! -z "$COCKROACH_DEV_LICENSE" ]; then 
-      sleep 2
       cockroach sql --insecure --port=${_port} -e "set cluster setting cluster.organization='$COCKROACH_DEV_ORG'; set cluster setting enterprise.license='$COCKROACH_DEV_LICENSE';"
+      _crdb_maps_gcp
+      _crdb_maps_aws
+      _crdb_maps_azure
     fi
 
     # next instance number
@@ -52,14 +86,26 @@ _crdb() {
 # stop and restart by looking at /_crdb.pid.instance_number
 # $1 = instance number (1 - n)
 _crdb_stop () {
-  cat /tmp/_crdb.pid.$1 | while read _port _http_port _crdb_join _crdb_locality; do
-    cockroach quit --insecure --port=${_port}
+  local nodes=${1:-*}
+  while [ "$nodes" ]; do
+    IFS=\| cat /tmp/_crdb.pid.${nodes} | while read _port _http_port _crdb_instance _crdb_join _crdb_locality; do
+      cockroach quit --insecure --port=${_port}
+    done
+    shift
+    nodes=$1
   done
 }
 
+# restart (join not required for restart)
+# $1 = instance number (1 - n)
 _crdb_restart () {
-  cat /tmp/_crdb.pid.$1 | while read _port _http_port _crdb_join _crdb_locality; do
-    cockroach start --insecure --port=${_port} --http-port=${_http_port} --store=cockroach-data/${1} --cache=256MiB --background $_crdb_join $_crdb_locality
+  local nodes=${1:-*}
+  while [ "$nodes" ]; do
+  IFS=\| cat /tmp/_crdb.pid.${nodes} | while read _port _http_port _crdb_instance _crdb_join _crdb_locality; do
+    cockroach start --insecure --port=${_port} --http-port=${_http_port} --store=cockroach-data/${_crdb_instance} --cache=256MiB --background $_crdb_locality
+    done
+    shift
+    nodes=$1
   done
 }
 
@@ -111,15 +157,12 @@ cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${
 }
 
 # change replication factor
-_crdb_replication() {
-  foo_usage() { echo "_crdb_replication: [-t <tablename:-defaultdb>] [-r <replica count:-3]" 1>&2; return; }
+_crdb_num_replicas() {
+  foo_usage() { echo "_crdb_num_replicas: [-r <replica count:-5]" 1>&2; return; }
 
-  local OPTIND t=usertable r=5
-  while getopts ":t:r:" o; do
+  local OPTIND r=5
+  while getopts ":r:" o; do
     case "${o}" in
-      t)
-        t="${OPTARG}"
-        ;;
       r)
         r="${OPTARG}"
         ;;
@@ -130,7 +173,14 @@ _crdb_replication() {
   done
   shift $((OPTIND-1))
 
-  cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${_crdb_port:-26257}/${_crdb_db:-defaultdb}" -e "alter table ${t} configure zone using num_replicas=${r}"
+  cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${_crdb_port:-26257}/${_crdb_db:-defaultdb}" <<EOF
+ALTER RANGE default CONFIGURE ZONE USING num_replicas=${r};
+ALTER RANGE liveness CONFIGURE ZONE USING num_replicas=${r};
+ALTER RANGE meta CONFIGURE ZONE USING num_replicas=${r};
+ALTER RANGE system CONFIGURE ZONE USING num_replicas=${r};
+ALTER DATABASE system CONFIGURE ZONE USING num_replicas=${r};
+ALTER TABLE system.public.jobs CONFIGURE ZONE USING num_replicas=${r}; 
+EOF
 }
 	
 # show under replicated or un-available replics
@@ -170,7 +220,7 @@ _crdb_show_ranges_regions() {
 
 # coordinates from https://www.cockroachlabs.com/docs/stable/enable-node-map.html
 _crdb_maps_aws() {
-  cat <<-EOF | awk '{print "upsert into system.locations VALUES (" $0" );"}' | cockroach sql --insecure
+  cat <<-EOF | awk '{print "upsert into system.locations VALUES (" $0" );"}' | cockroach sql --insecure --host ${_crdb_host:-127.0.0.1}
 	'region', 'us-east-1', 37.478397, -76.453077
 	'region', 'us-east-2', 40.417287, -76.453077
 	'region', 'us-west-1', 38.837522, -120.895824
@@ -192,11 +242,12 @@ _crdb_maps_aws() {
 
 # gcloud compute region list
 _crdb_maps_gcp() {
-  cat <<-EOF | awk '{print "upsert into system.locations VALUES (" $0" );"}' | cockroach sql --insecure
+  cat <<-EOF | awk '{print "upsert into system.locations VALUES (" $0" );"}' | cockroach sql --insecure --host ${_crdb_host:-127.0.0.1}
 	'region', 'us-east1', 33.836082, -81.163727
 	'region', 'us-east4', 37.478397, -76.453077
 	'region', 'us-central1', 42.032974, -93.581543
 	'region', 'us-west1', 43.804133, -120.554201
+	'region', 'us-west2', 34.0522, 118.2437
 	'region', 'northamerica-northeast1', 56.130366, -106.346771
 	'region', 'europe-west1', 50.44816, 3.81886
 	'region', 'europe-west3', 50.110922, 8.682127
@@ -213,7 +264,7 @@ _crdb_maps_gcp() {
 }
 
 _crdb_maps_azure() {
-  cat <<-EOF | awk '{print "upsert into system.locations VALUES (" $0" );"}' | cockroach sql --insecure
+  cat <<-EOF | awk '{print "upsert into system.locations VALUES (" $0" );"}' | cockroach sql --insecure --host ${_crdb_host:-127.0.0.1}
 	'region', 'eastasia', 22.267, 114.188
 	'region', 'southeastasia', 1.283, 103.833
 	'region', 'centralus', 41.5908, -93.6208

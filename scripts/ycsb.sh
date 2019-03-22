@@ -7,8 +7,6 @@
 # d and e inserts new rows starting from Integer.MAX_VALUE = 2147483647
 # if run in parallel, multiple conflicts are expected
 
-. crdb.sh
-
 _ycsb() {
   local _ycsb_insertcount=${_ycsb_insertcount:-100000}
 
