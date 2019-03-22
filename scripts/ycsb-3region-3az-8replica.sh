@@ -22,6 +22,8 @@ roachprod run $f -- 'curl -O --location https://github.com/robert-s-lee/crdbexam
 
 # setup the schema with default 5 way replica 
 roachprod run $f:1 -- "PATH=~/:\$PATH; cockroach sql --insecure -e \"SET CLUSTER SETTING cluster.organization='$COCKROACH_DEV_ORG'; SET CLUSTER SETTING enterprise.license='$COCKROACH_DEV_LICENSE';\""
+roachprod run $f -- "PATH=~/:\$PATH;. ~/crdb.sh; _crdb_haproxy;"
+roachprod run $f -- "PATH=~/:\$PATH;. haproxy -D -f haproxy.cfg &"
 roachprod run $f:1 -- "PATH=~/:\$PATH;. ~/crdb.sh; _crdb_num_replicas -r ${replicas};. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_replica=${replicas} _ycsb_init; _ycsb_part; _ycsb_lease"
 
 # load initial dataset 1,000,000 from each node, 16 thread each node
