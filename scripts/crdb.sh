@@ -89,12 +89,14 @@ _crdb() {
 _crdb_stop () {
   local nodes=${1:-*}
   while [ "$nodes" ]; do
-    IFS=\| cat /tmp/_crdb.pid.${nodes} | while read _port _http_port _crdb_instance _crdb_join _crdb_locality; do
+    IFS=\|; cat /tmp/_crdb.pid.${nodes} | while read _port _http_port _crdb_instance _crdb_join _crdb_locality; do
+      echo ${_port}
       cockroach quit --insecure --port=${_port}
     done
     shift
     nodes=$1
   done
+  unset IFS
 }
 
 # restart (join not required for restart)
@@ -102,12 +104,13 @@ _crdb_stop () {
 _crdb_restart () {
   local nodes=${1:-*}
   while [ "$nodes" ]; do
-  IFS=\| cat /tmp/_crdb.pid.${nodes} | while read _port _http_port _crdb_instance _crdb_join _crdb_locality; do
+  IFS=\|; cat /tmp/_crdb.pid.${nodes} | while read _port _http_port _crdb_instance _crdb_join _crdb_locality; do
     cockroach start --insecure --port=${_port} --http-port=${_http_port} --store=cockroach-data/${_crdb_instance} --cache=256MiB --background $_crdb_locality
     done
     shift
     nodes=$1
   done
+  unset IFS
 }
 
 # kill and destroy data files
@@ -297,12 +300,137 @@ _crdb_maps_azure() {
 	EOF
 }
 
+_crdb_whereami() {
+foo_usage() { echo "_crdb_whereami: [-h <hostname:-`hostname`] [-p <port:-26257]" 1>&2; }
+
+  local OPTIND h=`hostname` p=26257
+  while getopts ":h:p:" o; do
+    case "${o}" in
+      h)
+        h="${OPTARG}"
+        ;;
+      p)
+        p="${OPTARG}"
+        ;;
+      *)
+        foo_usage
+        return
+        ;;
+    esac
+  done
+  shift $((OPTIND-1))
+
+  cockroach sql -u root --format tsv --insecure --url "postgresql://${h}:${p}" <<EOF | tail -n +2
+ select 
+  b.node_id, b.address, COALESCE(regexp_extract(b.args,'--http-port=(.*)'),a.args) http_port, 
+  b.locality->>'az' az, b.locality->>'region' region
+from 
+  (select node_id, '26257' args from crdb_internal.kv_node_status) a
+left join 
+  (select node_id, address, jsonb_array_elements_text(args) args, locality from crdb_internal.kv_node_status) b
+on a.node_id = b.node_id
+where 
+  b.args like '--http-port=%' 
+  and b.node_id = (select node_id::int from [show node_id])
+;
+EOF
+}
+
+_crdb_mypeers() {
+foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] [-c <circle:-region>] [-r random output]" 1>&2;}
+
+  local OPTIND h=`hostname` p=26257 c=region r="-g"
+  while getopts ":h:p:c:r" o; do
+    case "${o}" in
+      h)
+        h="${OPTARG}"
+        ;;
+      p)
+        p="${OPTARG}"
+        ;;
+      c)
+        c="${OPTARG}"
+        ;;
+      r)
+        r="-R"
+        ;;
+      *)
+        foo_usage
+        return
+        ;;
+    esac
+  done
+  shift $((OPTIND-1))
+  cockroach sql -u root --format tsv --insecure --url "postgresql://${h}:${p}" <<EOF | tail -n +2 | sort ${r}
+ select 
+  b.node_id, b.address, COALESCE(regexp_extract(b.args,'--http-port=(.*)'),a.args) http_port, 
+  b.locality->>'az' az, b.locality->>'region' region
+from 
+  (select node_id, '26257' args from crdb_internal.kv_node_status) a
+left join 
+  (select node_id, address, jsonb_array_elements_text(args) args, locality from crdb_internal.kv_node_status) b
+on a.node_id = b.node_id
+where 
+  b.args like '--http-port=%' 
+  and b.locality->>'$c' in (select locality->>'$c' from crdb_internal.kv_node_status where node_id = (select node_id::int from [show node_id])
+)
+;
+EOF
+}
+
+#  select node_id, address, locality->>'az' az, locality->>'region' region
+#  from crdb_internal.kv_node_status 
+#  where locality->>'$c' = (select locality->>'$c' from crdb_internal.kv_node_status where address = '${h}:${p}')
+
+_crdb_notmypeers() {
+foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] [-c <circle:-region>"] [-r random output] 1>&2;}
+
+  local OPTIND h=`hostname` p=26257 c=region r="-g"
+  while getopts ":h:p:c:r" o; do
+    case "${o}" in
+      h)
+        h="${OPTARG}"
+        ;;
+      p)
+        p="${OPTARG}"
+        ;;
+      c)
+        c="${OPTARG}"
+        ;;
+      r)
+        r="-R"
+        ;;
+      *)
+        foo_usage
+        return
+        ;;
+    esac
+  done
+  shift $((OPTIND-1))
+  cockroach sql -u root --format tsv --insecure --url "postgresql://${h}:${p}" <<EOF | tail -n +2 | sort ${r}
+ select 
+  b.node_id, b.address, COALESCE(regexp_extract(b.args,'--http-port=(.*)'),a.args) http_port, 
+  b.locality->>'az' az, b.locality->>'region' region
+from 
+  (select node_id, '26257' args from crdb_internal.kv_node_status) a
+left join 
+  (select node_id, address, jsonb_array_elements_text(args) args, locality from crdb_internal.kv_node_status) b
+on a.node_id = b.node_id
+where 
+  b.args like '--http-port=%' 
+  and b.locality->>'$c' not in (select locality->>'$c' from crdb_internal.kv_node_status where node_id =(select node_id::int from [show node_id]))
+;
+EOF
+}
+
 _crdb_haproxy() {
 
 local i=1
 cat >haproxy.cfg <<EOF
 global
   maxconn 4096
+  nbproc 1
+  nbthread 4
 
 defaults
     mode                tcp
@@ -319,9 +447,12 @@ listen psql
     mode tcp
     balance roundrobin
     option httpchk GET /health?ready=1
-    server cockroach0 localhost:26257 check port 26258
 EOF
-
-cockroach sql --insecure --format csv --host ${_crdb_host:-127.0.0.1} -e "select address from crdb_internal.kv_node_status"| tail -n +2 | sort -g | awk '{print "server cockroach" i " " $0 " check port 26258 backup"; i++}' i=$i  >> haproxy.cfg
-   
+echo "# use my localhost as default " >> haproxy.cfg
+_crdb_whereami | awk '{print "server cockroach" $1 " " $2 " check port " $3;}'    >> haproxy.cfg
+local mynode=`_crdb_whereami | awk '{print $1}'`
+echo "# backup in my region -- randomized" >> haproxy.cfg
+_crdb_mypeers -r | grep -v "^${mynode}[ \t]*" | awk '{print "server cockroach" $1 " " $2 " check port " $3 " backup";}'    >> haproxy.cfg
+echo "# backup outside my region -- randomized" >> haproxy.cfg
+_crdb_notmypeers -r | awk '{print "server cockroach" $1 " " $2 " check port " $3 " backup";}' >> haproxy.cfg
 } 

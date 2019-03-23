@@ -78,7 +78,9 @@ _ycsb_ddl() {
     SET CLUSTER SETTING kv.closed_timestamp.follower_reads_enabled = true; \
     CREATE TABLE if not exists ${_ycsb_db:-defaultdb}.usertable( \
     YCSB_KEY VARCHAR PRIMARY KEY"
-  for s in `seq 0 $((${_ycsb_fieldcount:-10}-1))`; do sql="$sql,FIELD$s VARCHAR"; done
+  for s in `seq 0 $((${_ycsb_fieldcount:-10}-1))`; do 
+    sql="${sql},FIELD${s} VARCHAR"
+  done
   echo "$sql"
 }
 
