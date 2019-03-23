@@ -429,8 +429,7 @@ local i=1
 cat >haproxy.cfg <<EOF
 global
   maxconn 4096
-  nbproc 1
-  nbthread 4
+  nbproc 4
 
 defaults
     mode                tcp
