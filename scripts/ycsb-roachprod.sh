@@ -1,3 +1,5 @@
+# when roachprod stop is run, the haproxy will die.  restart
+
 # start the DB
 roachprod stage $f release $ver
 roachprod install $f haproxy
