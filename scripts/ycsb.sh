@@ -41,7 +41,7 @@ $YCSB/bin/ycsb $1 jdbc -s -P $YCSB/workloads/workload${_ycsb_workload:-$2} \
   > ycsb.log
 }
 
-_ycsb_nodeid {
+_ycsb_nodeid() {
 cockroach sql -u root --insecure --format csv --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "show node_id" | tail -n +2
 }
 
