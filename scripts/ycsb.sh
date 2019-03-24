@@ -13,7 +13,7 @@ _ycsb() {
   if [ ! -z "${_ycsb_node}" ]; then
     local _ycsb_insertstart
     local _ycsb_zeropadding
-    _ycsb_insertstart=$(($_ycsb_insertcount * $_ycsb_node))
+    _ycsb_insertstart=$(($_ycsb_insertcount * ($_ycsb_node - 1)))
     ((_ycsb_zeropadding= 2 + ${#_ycsb_insertcount}))
   fi
 
@@ -39,6 +39,10 @@ $YCSB/bin/ycsb $1 jdbc -s -P $YCSB/workloads/workload${_ycsb_workload:-$2} \
   -p recordcount=${_ycsb_recordcount:-0} \
   -p operationcount=${_ycsb_operationcount:-10000} \
   > ycsb.log
+}
+
+_ycsb_nodeid {
+cockroach sql -u root --insecure --format csv --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "show node_id" | tail -n +2
 }
 
 # display ranges
@@ -111,7 +115,7 @@ _ycsb_init () {
     if [ -z "$1" ]; then break; fi
   done    
    
-  sql="$sql); alter table ${_ycsb_db:-defaultdb}.usertable configure zone using num_replicas=${_ycsb_replicas:-5};" 
+  sql="$sql); alter table ${_ycsb_db:-defaultdb}.usertable configure zone using num_replicas=${_ycsb_replicas:-3};" 
   cockroach sql -u root --insecure \
     --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" \
     -e "${sql}"

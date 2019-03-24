@@ -18,15 +18,16 @@ roachprod run $f -- "PATH=~/:\$PATH;. ~/crdb.sh; _crdb_haproxy;"
 roachprod run $f -- "PATH=~/:\$PATH;haproxy -D -f ./haproxy.cfg &"
 roachprod run $f:1 -- "PATH=~/:\$PATH;. ~/crdb.sh; _crdb_replicas=${_crdb_replicas} _crdb_num_replicas;_crdb_maps_gcp; . ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_replicas=${_ycsb_replicas} _ycsb_init; _ycsb_part"
 roachprod run $f -- "PATH=~/:\$PATH;. ~/crdb.sh; _crdb_ping"
+roachprod run $f -- "PATH=~/:\$PATH;. ~/crdb.sh;. ~/ycsb.sh; _crdb_replicas=$_ycsb_replicas _ycsb_lease"
 
 # load initial dataset 1,000,000 from each node, 16 thread each node
-roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=1000000 _ycsb_node=\`hostname | awk -F- '{print (\$NF-1)}'\`; _ycsb_port=26256 _ycsb_threads=4 _ycsb load a"
+roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=${_ycsb_insertcount} _ycsb_node=\`_ycsb_nodeid`; _ycsb_port=26256 _ycsb_threads=4 _ycsb load a"
 
 # run workload b, 8 thread each node using AOST
-roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=1000000 _ycsb_operationcount=500000 _ycsb_node=\`hostname | awk -F- '{print (\$NF-1)}'\`; _ycsb_port=26256 _ycsb_threads=8 _ycsb_dbdialect=jdbc:cockroach _ycsb run b";
+roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=${_ycsb_insertcount} _ycsb_operationcount=500000 _ycsb_node=\`hostname | awk -F- '{print (\$NF-1)}'\`; _ycsb_port=26256 _ycsb_threads=4 _ycsb_dbdialect=jdbc:cockroach _ycsb run b";
 
 # run workload b, 8 thread each node NOT using AOST
-roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=1000000 _ycsb_operationcount=100000 _ycsb_node=\`hostname | awk -F- '{print (\$NF-1)}'\`; _ycsb_port=26256  _ycsb_threads=8 _ycsb_dbdialect=jdbc:postgresql _ycsb run b"
+roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=${_ycsb_insertcount} _ycsb_operationcount=100000 _ycsb_node=\`hostname | awk -F- '{print (\$NF-1)}'\`; _ycsb_port=26256  _ycsb_threads=4 _ycsb_dbdialect=jdbc:postgresql _ycsb run a"
 
 # kill any java running
 roachprod run $f -- "pkill -9 java"

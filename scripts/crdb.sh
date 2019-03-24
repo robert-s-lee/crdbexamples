@@ -146,18 +146,18 @@ _crdb_locs() {
 }
 
 _crdb_show_ranges() {
-cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${_crdb_port:-26257}/${_crdb_db:-defaultdb}" <<-EOF
-	select range_id, array_agg(node_id) node_id, array_agg(region) region, array_agg(az) az
-	from 
-	  ( select range_id,lease_holder,unnest(replicas) as replicas 
-	    from [show experimental_ranges from table ${crdbb_db:-defaultdb}.$1]) a, 
-	  ( select node_id, locality->>'zone' az, locality->>'region' region
-	    from crdb_internal.kv_node_status) b 
-	where a.replicas=b.node_id
-	group by range_id 
-	order by range_id 
-	;
-	EOF
+cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${_crdb_port:-26257}/${_crdb_db:-defaultdb}" <<EOF
+select start_key, end_key, range_id,lease_holder, array_agg(node_id) node_id, array_agg(az) az
+from 
+  ( select start_key,end_key, range_id,lease_holder,unnest(replicas) as replicas 
+    from [show experimental_ranges from table ${crdbb_db:-defaultdb}.${1:-usertable}]) a, 
+  ( select node_id, locality->>'zone' az, locality->>'region' region
+    from crdb_internal.kv_node_status) b 
+where a.replicas=b.node_id
+group by range_id,start_key,end_key,lease_holder
+order by start_key,end_key,range_id,lease_holder
+;
+EOF
 }
 
 # change replication factor
@@ -207,19 +207,19 @@ _crdb_show_ranges_regions() {
   done
   shift $((OPTIND-1))
 
-  cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${_crdb_port:-26257}/${_crdb_db:-defaultdb}" <<-EOF
-	select range_id, array_agg(node_id) node_id, array_agg(region) region
-	from 
-	  ( select range_id,lease_holder,unnest(replicas) as replicas 
-	    from [show experimental_ranges from table ${crdbb_db:-defaultdb}.${t}]) a, 
-	  ( select node_id, locality->>'az' az, locality->>'region' region
-	    from crdb_internal.kv_node_status) b 
-	where a.replicas=b.node_id
-	group by range_id 
-	having count(distinct(region)) < count(region)
-	order by range_id 
-	;
-	EOF
+  cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${_crdb_port:-26257}/${_crdb_db:-defaultdb}" <<EOF
+select start_key,end_key, range_id, lease_holder, array_agg(node_id) node_id, array_agg(region) region
+from 
+  ( select start_key,end_key,range_id,lease_holder,unnest(replicas) as replicas 
+    from [show experimental_ranges from table ${crdbb_db:-defaultdb}.${t}]) a, 
+  ( select node_id, locality->>'az' az, locality->>'region' region
+    from crdb_internal.kv_node_status) b 
+where a.replicas=b.node_id
+group by range_id 
+having count(distinct(region)) < count(region)
+order by range_id 
+;
+EOF
 }
 
 # coordinates from https://www.cockroachlabs.com/docs/stable/enable-node-map.html
@@ -444,7 +444,7 @@ _crdb_ping() {
   _crdb_notmypeers | while read node_id addr http_port az region; do
     addr_ip=`echo $addr | awk -F: '{print $1}'`
     # echo "$node_id $addr $addr_ip $http_port $az $region"
-    ping -c 1 $addr_ip | tail -1 | awk -F'[ /]' '{print r " " $8}' r=$region >> /tmp/_crdb_ping.$node_id
+    ping -c 3 $addr_ip | tail -1 | awk -F'[ /]' '{print r " " $8}' r=$region >> /tmp/_crdb_ping.$node_id
   done  
   cat /tmp/_crdb_ping.* | awk '{s[$1]=s[$1]+$2; c[$1]=c[$1]+1;} END {for (key in s) {print key " " s[key]/c[key] " " s[key] " " c[key];}}' | sort -k2,4 > /tmp/_crdb_ping
 }
