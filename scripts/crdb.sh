@@ -444,7 +444,7 @@ _crdb_ping() {
   _crdb_notmypeers | while read node_id addr http_port az region; do
     addr_ip=`echo $addr | awk -F: '{print $1}'`
     # echo "$node_id $addr $addr_ip $http_port $az $region"
-    ping -c 1 $addr_ip | awk -F'[ /]' '/^round-trip/ {print r " " $8}' r=$region >> /tmp/_crdb_ping.$node_id
+    ping -c 1 $addr_ip | tail -1 | awk -F'[ /]' '{print r " " $8}' r=$region >> /tmp/_crdb_ping.$node_id
   done  
   cat /tmp/_crdb_ping.* | awk '{s[$1]=s[$1]+$2; c[$1]=c[$1]+1;} END {for (key in s) {print key " " s[key]/c[key] " " s[key] " " c[key];}}' | sort -k2,4 > /tmp/_crdb_ping
 }
