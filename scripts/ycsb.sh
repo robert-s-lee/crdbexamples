@@ -158,7 +158,7 @@ _ycsb_part() {
   local part_end
   part_keys="${@:-`cockroach node ls --insecure | tail -n +2 | sort -g`}"
   for p in $part_keys; do
-    p=$(($p - 1))
+    p=$(( $p - 1 ))
     part_end=`printf "'user%03d'" $(($p+1))`
     sql="$sql $comma PARTITION user$p VALUES FROM ($part_begin) TO ($part_end)"
     comma=","
@@ -196,6 +196,7 @@ _ycsb_lease() {
   local lease_order=`_crdb_ping_leaseorder`
   local replica_order=`_crdb_ping_replicaorder`
   _crdb_whereami | while read node_id addr http_port az region; do
+    node_id=$(( $node_id - 1 ))
     echo  "$node_id $addr $http_port $az $region"
     sql="ALTER PARTITION user$node_id OF TABLE ${_ycsb_db:-defaultdb}.usertable \
       CONFIGURE ZONE USING constraints='$replica_order', lease_preferences='$lease_order';"
