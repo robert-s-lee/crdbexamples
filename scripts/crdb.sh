@@ -50,10 +50,10 @@ _crdb() {
 
     # expand aws and gcp az to full cloud=xx,region=xx,az=xx
     if [ "$c" = "gcp" ]; then
-        _loc=`echo $_loc | awk -F'-' '{print "region=" $1 "-" $2 ",cloud=" c ",az=" $0}' c=$c`
+        _loc=`echo $_loc | awk -F'-' '{print "region=" $1 "-" $2 ",cloud=" c ",zone=" $0}' c=$c`
         echo $_loc
     elif [ "$c" = "aws" ]; then
-        _loc=`echo $_loc | awk -F'-' '{print "region=" substr($0,1,length($0)-1) ",cloud=" c ",az=" $0}' c=$c`
+        _loc=`echo $_loc | awk -F'-' '{print "region=" substr($0,1,length($0)-1) ",cloud=" c ",zone=" $0}' c=$c`
         echo $_loc
     fi
 
@@ -323,7 +323,7 @@ foo_usage() { echo "_crdb_whereami: [-h <hostname:-`hostname`] [-p <port:-26257]
   cockroach sql -u root --format tsv --insecure --url "postgresql://${h}:${p}" <<EOF | tail -n +2
  select 
   b.node_id, b.address, COALESCE(regexp_extract(b.args,'--http-port=(.*)'),a.args) http_port, 
-  b.locality->>'az' az, b.locality->>'region' region
+  b.locality->>'zone' az, b.locality->>'region' region
 from 
   (select node_id, '26257' args from crdb_internal.kv_node_status) a
 left join 
@@ -364,7 +364,7 @@ foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] 
   cockroach sql -u root --format tsv --insecure --url "postgresql://${h}:${p}" <<EOF | tail -n +2 | sort ${r}
  select 
   b.node_id, b.address, COALESCE(regexp_extract(b.args,'--http-port=(.*)'),a.args) http_port, 
-  b.locality->>'az' az, b.locality->>'region' region
+  b.locality->>'zone' az, b.locality->>'region' region
 from 
   (select node_id, '26257' args from crdb_internal.kv_node_status) a
 left join 
@@ -378,7 +378,7 @@ where
 EOF
 }
 
-#  select node_id, address, locality->>'az' az, locality->>'region' region
+#  select node_id, address, locality->>'zone' az, locality->>'region' region
 #  from crdb_internal.kv_node_status 
 #  where locality->>'$c' = (select locality->>'$c' from crdb_internal.kv_node_status where address = '${h}:${p}')
 
@@ -410,7 +410,7 @@ foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] 
   cockroach sql -u root --format tsv --insecure --url "postgresql://${h}:${p}" <<EOF | tail -n +2 | sort ${r}
  select 
   b.node_id, b.address, COALESCE(regexp_extract(b.args,'--http-port=(.*)'),a.args) http_port, 
-  b.locality->>'az' az, b.locality->>'region' region
+  b.locality->>'zone' az, b.locality->>'region' region
 from 
   (select node_id, '26257' args from crdb_internal.kv_node_status) a
 left join 
@@ -443,10 +443,9 @@ _crdb_ping() {
   rm /tmp/_crdb_ping.*
   _crdb_notmypeers | while read node_id addr http_port az region; do
     addr_ip=`echo $addr | awk -F: '{print $1}'`
-    echo "$node_id $addr $addr_ip $http_port $az $region"
-    ping -c 5 $addr_ip | awk -F'[ /]' '/^round-trip/ {print r " " $8}' r=$region >> /tmp/_crdb_ping.$node_id
+    # echo "$node_id $addr $addr_ip $http_port $az $region"
+    ping -c 1 $addr_ip | awk -F'[ /]' '/^round-trip/ {print r " " $8}' r=$region >> /tmp/_crdb_ping.$node_id
   done  
-  wait
   cat /tmp/_crdb_ping.* | awk '{s[$1]=s[$1]+$2; c[$1]=c[$1]+1;} END {for (key in s) {print key " " s[key]/c[key] " " s[key] " " c[key];}}' | sort -k2,4 > /tmp/_crdb_ping
 }
 
