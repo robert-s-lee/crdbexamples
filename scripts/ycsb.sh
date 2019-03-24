@@ -111,7 +111,7 @@ _ycsb_init () {
     if [ -z "$1" ]; then break; fi
   done    
    
-  sql="$sql); alter table ${_ycsb_db:-defaultdb}.usertable configure zone using num_replicas=${_ycsb_replica:-5};" 
+  sql="$sql); alter table ${_ycsb_db:-defaultdb}.usertable configure zone using num_replicas=${_ycsb_replicas:-5};" 
   cockroach sql -u root --insecure \
     --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" \
     -e "${sql}"
@@ -173,7 +173,7 @@ _ycsb_part() {
 # ALTER PARTITION user1 OF TABLE defaultdb.usertable CONFIGURE ZONE USING constraints='[+r=east]', lease_preferences='[[+r=east]]'; 
 # ALTER PARTITION user2 OF TABLE defaultdb.usertable CONFIGURE ZONE USING constraints='[+r=central]', lease_preferences='[[+r=central]]';
 # ALTER PARTITION user3 OF TABLE defaultdb.usertable CONFIGURE ZONE USING constraints='[+r=west]', lease_preferences='[[+r=west]]';
-_ycsb_lease() {
+_ycsb_lease_old() {
   local part_keys="${@:-`_crdb_locs`}"
   local sql=""
   local part_end
@@ -182,6 +182,18 @@ _ycsb_lease() {
     # constraints='[+$constraints]' set the replca
     sql="ALTER PARTITION user$p OF TABLE ${_ycsb_db:-defaultdb}.usertable \
       CONFIGURE ZONE USING lease_preferences='[[+$constraints]]';"
+    echo $sql
+    cockroach sql -u root --insecure --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "$sql"
+  done
+}
+
+_ycsb_lease() {
+  local lease_order=`_crdb_ping_leaseorder`
+  local replica_order=`_crdb_ping_replicaorder`
+  _crdb_whereami | while read node_id addr http_port az region; do
+    echo  "$node_id $addr $http_port $az $region"
+    sql="ALTER PARTITION user$node_id OF TABLE ${_ycsb_db:-defaultdb}.usertable \
+      CONFIGURE ZONE USING constraints='$replica_order', lease_preferences='$lease_order';"
     echo $sql
     cockroach sql -u root --insecure --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "$sql"
   done

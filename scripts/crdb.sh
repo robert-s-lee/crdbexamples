@@ -17,7 +17,7 @@
 # examples to setup without locality
 #   _crdb; _crdb; _crdb
 _crdb() {
-  foo_usage() { echo "_crdb: [-c <aws|gce>]" 1>&2; return; }
+  foo_usage() { echo "_crdb: [-c <aws|gcp>]" 1>&2; return; }
 
   _crdb_instance=${_crdb_instance:-1}
   local _crdb_port=${_crdb_port:-26257}
@@ -303,7 +303,7 @@ _crdb_maps_azure() {
 _crdb_whereami() {
 foo_usage() { echo "_crdb_whereami: [-h <hostname:-`hostname`] [-p <port:-26257]" 1>&2; }
 
-  local OPTIND h=`hostname` p=26257
+  local OPTIND h=${_crdb_hostname:-`hostname`} p=${_crdb_port:-26257}
   while getopts ":h:p:" o; do
     case "${o}" in
       h)
@@ -339,7 +339,7 @@ EOF
 _crdb_mypeers() {
 foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] [-c <circle:-region>] [-r random output]" 1>&2;}
 
-  local OPTIND h=`hostname` p=26257 c=region r="-g"
+  local OPTIND h=${_crdb_hostname:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
   while getopts ":h:p:c:r" o; do
     case "${o}" in
       h)
@@ -385,7 +385,7 @@ EOF
 _crdb_notmypeers() {
 foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] [-c <circle:-region>"] [-r random output] 1>&2;}
 
-  local OPTIND h=`hostname` p=26257 c=region r="-g"
+  local OPTIND h=${_crdb_hostname:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
   while getopts ":h:p:c:r" o; do
     case "${o}" in
       h)
@@ -421,6 +421,45 @@ where
   and b.locality->>'$c' not in (select locality->>'$c' from crdb_internal.kv_node_status where node_id =(select node_id::int from [show node_id]))
 ;
 EOF
+}
+
+_crdb_ping() {
+  foo_usage() { echo "_crdb_ping: [-c <circle:-region>" 1>&2;}
+
+  local OPTIND c=region 
+  while getopts ":c:" o; do
+    case "${o}" in
+      c)
+        c="${OPTARG}"
+        ;;
+      *)
+        foo_usage
+        return
+        ;;
+    esac
+  done
+  shift $((OPTIND-1))
+
+  rm /tmp/_crdb_ping.*
+  _crdb_notmypeers | while read node_id addr http_port az region; do
+    addr_ip=`echo $addr | awk -F: '{print $1}'`
+    echo "$node_id $addr $addr_ip $http_port $az $region"
+    ping -t 5 $addr_ip | awk -F'[ /]' '/^round-trip/ {print r " " $8}' r=$region >> /tmp/_crdb_ping.$node_id
+  done  
+  wait
+  cat /tmp/_crdb_ping.* | awk '{s[$1]=s[$1]+$2; c[$1]=c[$1]+1;} END {for (key in s) {print key " " s[key]/c[key] " " s[key] " " c[key];}}' | sort -k2,4 > /tmp/_crdb_ping
+}
+
+# lease_preferences='[[+zone=us-east-1b], [+zone=us-east-1a]]';
+# _crdb_replicas
+_crdb_ping_leaseorder() {
+  local _crdb_replicas=${_crdb_replicas:-3}
+  cat /tmp/_crdb_ping | awk 'BEGIN {printf "["}; {printf comma "[+region=" $1 "]"; comma=","; n=n+1; if (n >= max_n) {exit}} END {print "]"}' max_n=$_crdb_replicas
+}
+
+_crdb_ping_replicaorder() {
+  local _crdb_replicas=${_crdb_replicas:-3}
+  cat /tmp/_crdb_ping | awk 'BEGIN {printf "{"}; {printf comma "\"+region=" $1 "\":1"; comma=","; n=n+1; if (n >= max_n) {exit}} END {print "}"}' max_n=$_crdb_replicas
 }
 
 _crdb_haproxy() {

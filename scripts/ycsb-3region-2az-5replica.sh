@@ -1,6 +1,8 @@
 export f=robert-ycsb-3d2z5r
 export ver=v19.1.0-beta.20190318
-export replicas=5
+export branch=replica-lease
+export _crdb_replicas=5
+export _ycsb_replicas=5
 export COCKROACH_DEV_ORG='Cockroach Labs Training'
 export COCKROACH_DEV_LICENSE='crl-0-EIDA4OgGGAEiF0NvY2tyb2FjaCBMYWJzIFRyYWluaW5n'
 
