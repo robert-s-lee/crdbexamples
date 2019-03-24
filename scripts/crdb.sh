@@ -453,12 +453,12 @@ _crdb_ping() {
 # _crdb_replicas
 _crdb_ping_leaseorder() {
   local _crdb_replicas=${_crdb_replicas:-3}
-  cat /tmp/_crdb_ping | awk 'BEGIN {printf "["}; {printf comma "[+region=" $1 "]"; comma=","; n=n+1; if (n >= max_n) {exit}} END {print "]"}' max_n=$_crdb_replicas
+  _crdb_whereami | awk '{print $NF}' | cat - /tmp/_crdb_ping | awk 'BEGIN {printf "["}; {printf comma "[+region=" $1 "]"; comma=","; n=n+1; if (n >= max_n) {exit}} END {print "]"}' max_n=$_crdb_replicas
 }
 
 _crdb_ping_replicaorder() {
   local _crdb_replicas=${_crdb_replicas:-3}
-  cat /tmp/_crdb_ping | awk 'BEGIN {printf "{"}; {printf comma "\"+region=" $1 "\":1"; comma=","; n=n+1; if (n >= max_n) {exit}} END {print "}"}' max_n=$_crdb_replicas
+  _crdb_whereami | awk '{print $NF}' | cat - /tmp/_crdb_ping | awk 'BEGIN {printf "{"}; {printf comma "\"+region=" $1 "\":1"; comma=","; n=n+1; if (n >= max_n) {exit}} END {print "}"}' max_n=$_crdb_replicas
 }
 
 _crdb_haproxy() {
