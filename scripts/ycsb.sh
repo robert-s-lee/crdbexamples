@@ -66,7 +66,7 @@ $YCSB/bin/ycsb $1 jdbc -s -P $YCSB/workloads/workload${_ycsb_workload:-$2} \
   -p insertcount=${_ycsb_insertcount} \
   -p recordcount=${_ycsb_recordcount:-0} \
   -p operationcount=${_ycsb_operationcount:-10000} \
-  > ycsb.log
+  > ycsb.log.$1.$2.${_ycsb_node}
 }
 
 _ycsb_nodeid() {
@@ -236,28 +236,32 @@ _ycsb_lease() {
 # summarize the ycsb log file
 _ycsb_report () {
   if [ ! -f results.csv ]; then
-    echo "db,scenario,workload,replica,time,read,update,rmw,insert,scan" > results.csv
+    echo "db,scenario,workload,replica,threads,mintime,maxtime,tpsmin,tpsmax,read,scan,rmw,insert,update,readerr,scanerr,rmwerr,inserterr,updateerr" > results.csv
   fi
   grep -e "Operations" -e "RunTime" $1 -e "Using shards:" | \
-    awk  -v db=$version -v scenario="load" -v workload=$w -v replica=$r \
+    awk  -v db=$v -v scenario=$s -v workload=$w -v replica=$r \
       'BEGIN {times=0;threads=0;batchsize=0;\
         read=0;update=0;rmw=0;insert=0;scan=0; \
         readerr=0;updateerr=0;rmwerr=0;inserterr=0;scanerr=0; } \
       $1=="Using" {threads=threads+1} \
-      $1=="[OVERALL]," {time=$3} \
-      $1=="[READ]," {read=$3} \
-      $1=="[READ-FAILED]," {readerr=$3} \
-      $1=="[UPDATE]," {update=$3} \
-      $1=="[UPDATE-FAILED]," {updateerr=$3} \
-      $1=="[READ-MODIFY-WRITE]," {rmw=$3} \
-      $1=="[READ-MODIFY-WRITE-FAILED]," {rmwerr=$3} \
-      $1=="[INSERT]," {insert=$3} \
-      $1=="[INSERT-FAILED]," {inserterr=$3} \
-      $1=="[SCAN]," {scan=$3} 
-      $1=="[SCAN-FAILED]," {scanerr=$3} 
-      END {print db "," scenario "," workload "," replica "," threads \
-        "," time \
-        "," read "," update "," rmw "," insert "," scan \
-        "," readerr "," updateerr "," rmwerr "," inserterr "," scanerr }' | \
+      $1=="[OVERALL]," {if (time==0) {mintime=$3; maxtime=$3; time=$3;} if ($3 < mintime) {mintime=$3}; if ($4 > maxtime) {maxtime=$3};} \
+      $1=="[READ]," {read=read+$3} \
+      $1=="[READ-FAILED]," {readerr=readerr+$3} \
+      $1=="[UPDATE]," {update=update+$3} \
+      $1=="[UPDATE-FAILED]," {updateerr=updateerr+$3} \
+      $1=="[READ-MODIFY-WRITE]," {rmw=rmw+$3} \
+      $1=="[READ-MODIFY-WRITE-FAILED]," {rmwerr=rmwerr+$3} \
+      $1=="[INSERT]," {insert=insert+$3} \
+      $1=="[INSERT-FAILED]," {inserterr=inserterr+$3} \
+      $1=="[SCAN]," {scan=scan+$3} 
+      $1=="[SCAN-FAILED]," {scanerr=scanerr+$3} 
+      END {tps=read+scan+rmw+insert+update; \
+           tpsmin=tps*1000/mintime; tpsmax=tps*1000/maxtime; \
+           tpserr=readerr+scanerr+rmwerr+inserterr+updateerr; \
+           tpserrmin=tsperr*1000/mintime; tpserrmax=tsperr*1000/maxtime; \
+        print db "," scenario "," workload "," replica "," threads \
+        "," mintime "," maxtime "," tpsmin "," tpsmax \
+        "," read "," scan "," rmw "," insert "," update \
+        "," readerr "," scanerr "," rmwerr "," inserterr "," scanerr, updateerr }' | \
     tee -a results.csv
 }

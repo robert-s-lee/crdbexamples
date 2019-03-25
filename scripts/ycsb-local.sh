@@ -30,11 +30,13 @@ cockroach node status --insecure | tail -n +2 |  awk -F'[ :\t]' '{print $3}' | w
 # load initial dataset
 cockroach node status --insecure | tail -n +2 |  awk -F'[ :\t]' '{print $1 " " $3}' | while read _ycsb_node _crdb_port; do  _ycsb load a; done
 
-# run the workload
-cockroach node status --insecure | tail -n +2 |  awk -F'[ :\t]' '{print $1 " " $3}' | while read _ycsb_node _crdb_port; do  _ycsb run e; done
+# run the workloads
+for w in a b c d e f; do 
+cockroach node status --insecure | tail -n +2 |  awk -F'[ :\t]' '{print $1 " " $3}' | while read _ycsb_node _crdb_port; do  _ycsb run $w; done
+done
 
 # run workload b, 8 thread each node using AOST
-cockroach node status --insecure | tail -n +2 |  awk -F'[ :\t]' '{print $1 " " $3}' | while read _ycsb_node _crdb_port; do  _ycsb_dbdialect=jdbc:postgresql _ycsb run a; done
+cockroach node status --insecure | tail -n +2 |  awk -F'[ :\t]' '{print $1 " " $3}' | while read _ycsb_node _crdb_port; do  _ycsb_dbdialect=jdbc:cockroach _ycsb run a; done
 
 # kill any java running
 pkill -9 java
