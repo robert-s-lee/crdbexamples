@@ -6,6 +6,20 @@
 # recommneded sequence load a, run a,b,c,f,d load e, run e
 # d and e inserts new rows starting from Integer.MAX_VALUE = 2147483647
 # if run in parallel, multiple conflicts are expected
+#
+# Workloads D and E inserts records making parallel bit hard to setup 
+# the following parameters are automatically set to work with
+#
+# insertstart = start of sequence
+# insertcount = numbers of rows (50% populated with the bulk insert, the rest reserved for D and E)
+# recordcount = is set to insertstart + insertcount * .5 where D and E will start to insert
+# recordcount must be >= (insertstart + insertcount)
+# Example 
+#   insertstart = 20,000
+#   insertcount = 10,000
+#   user0020000 user0024999 bulk insert + read / update
+#   user0025000 user0029999 reserved for inserts from D and E
+
 
 _ycsb() {
   local _ycsb_insertcount=${_ycsb_insertcount:-100000}
@@ -13,18 +27,32 @@ _ycsb() {
   if [ ! -z "${_ycsb_node}" ]; then
     local _ycsb_insertstart
     local _ycsb_zeropadding
+    local _ycsb_recordcount
     _ycsb_insertstart=$(($_ycsb_insertcount * ($_ycsb_node - 1)))
-    ((_ycsb_zeropadding= 2 + ${#_ycsb_insertcount}))
+    _ycsb_zeropadding=$((2 + ${#_ycsb_insertcount}))
+    _ycsb_insertcount=$(($_ycsb_insertcount / 2))
+    _ycsb_recordcount=$(($_ycsb_insertstart + $_ycsb_insertcount))
   fi
 
   if [ ! -d $YCSB/bin ]; then echo "YCSB shoud contain $YCSB/bin directory"; return 1; fi
 
   if [ "$1" == "init" ]; then _ycsb_init; return 0; fi
 
+  local deleted
+  local delfrom=`echo 1 | awk "END {printf (\"user%0${_ycsb_zeropadding}d\", $_ycsb_recordcount)}"`
+  local delend=`echo 1 | awk "END {printf (\"user%0${_ycsb_zeropadding}d\", ($_ycsb_recordcount + $_ycsb_insertcount - 1))}"`
+
+  echo "deleting temp data from workloads D and E $delfrom $delend"
+  while [ "$deleted" != "DELETE 0" ]; do
+    deleted=`cockroach sql -u root --insecure --format csv --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "delete from usertable where ycsb_key between '$delfrom' and '$delend' limit 10000;"`
+    echo "$deleted"
+  done
+
+
 $YCSB/bin/ycsb $1 jdbc -s -P $YCSB/workloads/workload${_ycsb_workload:-$2} \
   -p db.user=${_ycsb_user:-root} \
   -p db.driver=org.postgresql.Driver \
-  -p db.dialect=${_ycsb_dbdialect:-jdbc:cockroach} \
+  -p db.dialect=${_ycsb_dbdialect:-jdbc:postgresql} \
   -p db.url=jdbc:postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}?reWriteBatchedInserts=true\&ApplicationName=${_ycsb_db:-defaultdb}_${2}_${_ycsb_insertstart} \
   -p jdbc.batchupdateapi=true \
   -p db.batchsize=${_ycsb_batchsize:-128} \
@@ -38,7 +66,7 @@ $YCSB/bin/ycsb $1 jdbc -s -P $YCSB/workloads/workload${_ycsb_workload:-$2} \
   -p insertcount=${_ycsb_insertcount} \
   -p recordcount=${_ycsb_recordcount:-0} \
   -p operationcount=${_ycsb_operationcount:-10000} \
-  > ycsb.log
+  > ycsb.log.$1.$2.${_ycsb_node}
 }
 
 _ycsb_nodeid() {
@@ -208,28 +236,32 @@ _ycsb_lease() {
 # summarize the ycsb log file
 _ycsb_report () {
   if [ ! -f results.csv ]; then
-    echo "db,scenario,workload,replica,time,read,update,rmw,insert,scan" > results.csv
+    echo "db,scenario,workload,replica,threads,mintime,maxtime,tpsmin,tpsmax,read,scan,rmw,insert,update,readerr,scanerr,rmwerr,inserterr,updateerr" > results.csv
   fi
   grep -e "Operations" -e "RunTime" $1 -e "Using shards:" | \
-    awk  -v db=$version -v scenario="load" -v workload=$w -v replica=$r \
+    awk  -v db=$v -v scenario=$s -v workload=$w -v replica=$r \
       'BEGIN {times=0;threads=0;batchsize=0;\
         read=0;update=0;rmw=0;insert=0;scan=0; \
         readerr=0;updateerr=0;rmwerr=0;inserterr=0;scanerr=0; } \
       $1=="Using" {threads=threads+1} \
-      $1=="[OVERALL]," {time=$3} \
-      $1=="[READ]," {read=$3} \
-      $1=="[READ-FAILED]," {readerr=$3} \
-      $1=="[UPDATE]," {update=$3} \
-      $1=="[UPDATE-FAILED]," {updateerr=$3} \
-      $1=="[READ-MODIFY-WRITE]," {rmw=$3} \
-      $1=="[READ-MODIFY-WRITE-FAILED]," {rmwerr=$3} \
-      $1=="[INSERT]," {insert=$3} \
-      $1=="[INSERT-FAILED]," {inserterr=$3} \
-      $1=="[SCAN]," {scan=$3} 
-      $1=="[SCAN-FAILED]," {scanerr=$3} 
-      END {print db "," scenario "," workload "," replica "," threads \
-        "," time \
-        "," read "," update "," rmw "," insert "," scan \
-        "," readerr "," updateerr "," rmwerr "," inserterr "," scanerr }' | \
+      $1=="[OVERALL]," {if (time==0) {mintime=$3; maxtime=$3; time=$3;} if ($3 < mintime) {mintime=$3}; if ($4 > maxtime) {maxtime=$3};} \
+      $1=="[READ]," {read=read+$3} \
+      $1=="[READ-FAILED]," {readerr=readerr+$3} \
+      $1=="[UPDATE]," {update=update+$3} \
+      $1=="[UPDATE-FAILED]," {updateerr=updateerr+$3} \
+      $1=="[READ-MODIFY-WRITE]," {rmw=rmw+$3} \
+      $1=="[READ-MODIFY-WRITE-FAILED]," {rmwerr=rmwerr+$3} \
+      $1=="[INSERT]," {insert=insert+$3} \
+      $1=="[INSERT-FAILED]," {inserterr=inserterr+$3} \
+      $1=="[SCAN]," {scan=scan+$3} 
+      $1=="[SCAN-FAILED]," {scanerr=scanerr+$3} 
+      END {tps=read+scan+rmw+insert+update; \
+           tpsmin=tps*1000/mintime; tpsmax=tps*1000/maxtime; \
+           tpserr=readerr+scanerr+rmwerr+inserterr+updateerr; \
+           tpserrmin=tsperr*1000/mintime; tpserrmax=tsperr*1000/maxtime; \
+        print db "," scenario "," workload "," replica "," threads \
+        "," mintime "," maxtime "," tpsmin "," tpsmax \
+        "," read "," scan "," rmw "," insert "," update \
+        "," readerr "," scanerr "," rmwerr "," inserterr "," scanerr, updateerr }' | \
     tee -a results.csv
 }
