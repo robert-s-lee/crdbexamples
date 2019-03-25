@@ -6,6 +6,20 @@
 # recommneded sequence load a, run a,b,c,f,d load e, run e
 # d and e inserts new rows starting from Integer.MAX_VALUE = 2147483647
 # if run in parallel, multiple conflicts are expected
+#
+# Workloads D and E inserts records making parallel bit hard to setup 
+# the following parameters are automatically set to work with
+#
+# insertstart = start of sequence
+# insertcount = numbers of rows (50% populated with the bulk insert, the rest reserved for D and E)
+# recordcount = is set to insertstart + insertcount * .5 where D and E will start to insert
+# recordcount must be >= (insertstart + insertcount)
+# Example 
+#   insertstart = 20,000
+#   insertcount = 10,000
+#   user0020000 user0024999 bulk insert + read / update
+#   user0025000 user0029999 reserved for inserts from D and E
+
 
 _ycsb() {
   local _ycsb_insertcount=${_ycsb_insertcount:-100000}
@@ -13,18 +27,32 @@ _ycsb() {
   if [ ! -z "${_ycsb_node}" ]; then
     local _ycsb_insertstart
     local _ycsb_zeropadding
+    local _ycsb_recordcount
     _ycsb_insertstart=$(($_ycsb_insertcount * ($_ycsb_node - 1)))
-    ((_ycsb_zeropadding= 2 + ${#_ycsb_insertcount}))
+    _ycsb_zeropadding=$((2 + ${#_ycsb_insertcount}))
+    _ycsb_insertcount=$(($_ycsb_insertcount / 2))
+    _ycsb_recordcount=$(($_ycsb_insertstart + $_ycsb_insertcount))
   fi
 
   if [ ! -d $YCSB/bin ]; then echo "YCSB shoud contain $YCSB/bin directory"; return 1; fi
 
   if [ "$1" == "init" ]; then _ycsb_init; return 0; fi
 
+  local deleted
+  local delfrom=`echo 1 | awk "END {printf (\"user%0${_ycsb_zeropadding}d\", $_ycsb_recordcount)}"`
+  local delend=`echo 1 | awk "END {printf (\"user%0${_ycsb_zeropadding}d\", ($_ycsb_recordcount + $_ycsb_insertcount - 1))}"`
+
+  echo "deleting temp data from workloads D and E $delfrom $delend"
+  while [ "$deleted" != "DELETE 0" ]; do
+    deleted=`cockroach sql -u root --insecure --format csv --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "delete from usertable where ycsb_key between '$delfrom' and '$delend' limit 10000;"`
+    echo "$deleted"
+  done
+
+
 $YCSB/bin/ycsb $1 jdbc -s -P $YCSB/workloads/workload${_ycsb_workload:-$2} \
   -p db.user=${_ycsb_user:-root} \
   -p db.driver=org.postgresql.Driver \
-  -p db.dialect=${_ycsb_dbdialect:-jdbc:cockroach} \
+  -p db.dialect=${_ycsb_dbdialect:-jdbc:postgresql} \
   -p db.url=jdbc:postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}?reWriteBatchedInserts=true\&ApplicationName=${_ycsb_db:-defaultdb}_${2}_${_ycsb_insertstart} \
   -p jdbc.batchupdateapi=true \
   -p db.batchsize=${_ycsb_batchsize:-128} \
