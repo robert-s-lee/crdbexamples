@@ -36,7 +36,14 @@ cockroach node status --insecure | tail -n +2 |  awk -F'[ :\t]' '{print $1 " " $
 done
 
 # run workload b, 8 thread each node using AOST
-cockroach node status --insecure | tail -n +2 |  awk -F'[ :\t]' '{print $1 " " $3}' | while read _ycsb_node _crdb_port; do  _ycsb_dbdialect=jdbc:cockroach _ycsb run a; done
+for w in a b c d e f; do 
+cockroach node status --insecure | tail -n +2 |  awk -F'[ :\t]' '{print $1 " " $3}' | while read _ycsb_node _crdb_port; do  _ycsb_dbdialect=jdbc:cockroach _ycsb run $w; done
+done
+
+# report of the run
+for w in a b c d e f; do 
+version=19.1.20190318;scenario=run;w=$w;r=3;cat ycsb.log.run.$w.* | _ycsb_report
+done
 
 # kill any java running
 pkill -9 java
