@@ -17,7 +17,7 @@
 # examples to setup without locality
 #   _crdb; _crdb; _crdb
 _crdb() {
-  foo_usage() { echo "_crdb: [-c <aws|gce>]" 1>&2; return; }
+  foo_usage() { echo "_crdb: [-c <aws|gcp>]" 1>&2; return; }
 
   _crdb_instance=${_crdb_instance:-1}
   local _crdb_port=${_crdb_port:-26257}
@@ -50,10 +50,10 @@ _crdb() {
 
     # expand aws and gcp az to full cloud=xx,region=xx,az=xx
     if [ "$c" = "gcp" ]; then
-        _loc=`echo $_loc | awk -F'-' '{print "region=" $1 "-" $2 ",cloud=" c ",az=" $0}' c=$c`
+        _loc=`echo $_loc | awk -F'-' '{print "region=" $1 "-" $2 ",cloud=" c ",zone=" $0}' c=$c`
         echo $_loc
     elif [ "$c" = "aws" ]; then
-        _loc=`echo $_loc | awk -F'-' '{print "region=" substr($0,1,length($0)-1) ",cloud=" c ",az=" $0}' c=$c`
+        _loc=`echo $_loc | awk -F'-' '{print "region=" substr($0,1,length($0)-1) ",cloud=" c ",zone=" $0}' c=$c`
         echo $_loc
     fi
 
@@ -146,18 +146,18 @@ _crdb_locs() {
 }
 
 _crdb_show_ranges() {
-cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${_crdb_port:-26257}/${_crdb_db:-defaultdb}" <<-EOF
-	select range_id, array_agg(node_id) node_id, array_agg(region) region, array_agg(az) az
-	from 
-	  ( select range_id,lease_holder,unnest(replicas) as replicas 
-	    from [show experimental_ranges from table ${crdbb_db:-defaultdb}.$1]) a, 
-	  ( select node_id, locality->>'zone' az, locality->>'region' region
-	    from crdb_internal.kv_node_status) b 
-	where a.replicas=b.node_id
-	group by range_id 
-	order by range_id 
-	;
-	EOF
+cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${_crdb_port:-26257}/${_crdb_db:-defaultdb}" <<EOF
+select start_key, end_key, range_id,lease_holder, array_agg(node_id) node_id, array_agg(az) az
+from 
+  ( select start_key,end_key, range_id,lease_holder,unnest(replicas) as replicas 
+    from [show experimental_ranges from table ${crdbb_db:-defaultdb}.${1:-usertable}]) a, 
+  ( select node_id, locality->>'zone' az, locality->>'region' region
+    from crdb_internal.kv_node_status) b 
+where a.replicas=b.node_id
+group by range_id,start_key,end_key,lease_holder
+order by start_key,end_key,range_id,lease_holder
+;
+EOF
 }
 
 # change replication factor
@@ -207,19 +207,19 @@ _crdb_show_ranges_regions() {
   done
   shift $((OPTIND-1))
 
-  cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${_crdb_port:-26257}/${_crdb_db:-defaultdb}" <<-EOF
-	select range_id, array_agg(node_id) node_id, array_agg(region) region
-	from 
-	  ( select range_id,lease_holder,unnest(replicas) as replicas 
-	    from [show experimental_ranges from table ${crdbb_db:-defaultdb}.${t}]) a, 
-	  ( select node_id, locality->>'az' az, locality->>'region' region
-	    from crdb_internal.kv_node_status) b 
-	where a.replicas=b.node_id
-	group by range_id 
-	having count(distinct(region)) < count(region)
-	order by range_id 
-	;
-	EOF
+  cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${_crdb_port:-26257}/${_crdb_db:-defaultdb}" <<EOF
+select start_key,end_key, range_id, lease_holder, array_agg(node_id) node_id, array_agg(region) region
+from 
+  ( select start_key,end_key,range_id,lease_holder,unnest(replicas) as replicas 
+    from [show experimental_ranges from table ${crdbb_db:-defaultdb}.${t}]) a, 
+  ( select node_id, locality->>'az' az, locality->>'region' region
+    from crdb_internal.kv_node_status) b 
+where a.replicas=b.node_id
+group by range_id 
+having count(distinct(region)) < count(region)
+order by range_id 
+;
+EOF
 }
 
 # coordinates from https://www.cockroachlabs.com/docs/stable/enable-node-map.html
@@ -303,7 +303,7 @@ _crdb_maps_azure() {
 _crdb_whereami() {
 foo_usage() { echo "_crdb_whereami: [-h <hostname:-`hostname`] [-p <port:-26257]" 1>&2; }
 
-  local OPTIND h=`hostname` p=26257
+  local OPTIND h=${_crdb_hostname:-`hostname`} p=${_crdb_port:-26257}
   while getopts ":h:p:" o; do
     case "${o}" in
       h)
@@ -323,7 +323,7 @@ foo_usage() { echo "_crdb_whereami: [-h <hostname:-`hostname`] [-p <port:-26257]
   cockroach sql -u root --format tsv --insecure --url "postgresql://${h}:${p}" <<EOF | tail -n +2
  select 
   b.node_id, b.address, COALESCE(regexp_extract(b.args,'--http-port=(.*)'),a.args) http_port, 
-  b.locality->>'az' az, b.locality->>'region' region
+  b.locality->>'zone' az, b.locality->>'region' region
 from 
   (select node_id, '26257' args from crdb_internal.kv_node_status) a
 left join 
@@ -339,7 +339,7 @@ EOF
 _crdb_mypeers() {
 foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] [-c <circle:-region>] [-r random output]" 1>&2;}
 
-  local OPTIND h=`hostname` p=26257 c=region r="-g"
+  local OPTIND h=${_crdb_hostname:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
   while getopts ":h:p:c:r" o; do
     case "${o}" in
       h)
@@ -364,7 +364,7 @@ foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] 
   cockroach sql -u root --format tsv --insecure --url "postgresql://${h}:${p}" <<EOF | tail -n +2 | sort ${r}
  select 
   b.node_id, b.address, COALESCE(regexp_extract(b.args,'--http-port=(.*)'),a.args) http_port, 
-  b.locality->>'az' az, b.locality->>'region' region
+  b.locality->>'zone' az, b.locality->>'region' region
 from 
   (select node_id, '26257' args from crdb_internal.kv_node_status) a
 left join 
@@ -378,14 +378,14 @@ where
 EOF
 }
 
-#  select node_id, address, locality->>'az' az, locality->>'region' region
+#  select node_id, address, locality->>'zone' az, locality->>'region' region
 #  from crdb_internal.kv_node_status 
 #  where locality->>'$c' = (select locality->>'$c' from crdb_internal.kv_node_status where address = '${h}:${p}')
 
 _crdb_notmypeers() {
 foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] [-c <circle:-region>"] [-r random output] 1>&2;}
 
-  local OPTIND h=`hostname` p=26257 c=region r="-g"
+  local OPTIND h=${_crdb_hostname:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
   while getopts ":h:p:c:r" o; do
     case "${o}" in
       h)
@@ -410,7 +410,7 @@ foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] 
   cockroach sql -u root --format tsv --insecure --url "postgresql://${h}:${p}" <<EOF | tail -n +2 | sort ${r}
  select 
   b.node_id, b.address, COALESCE(regexp_extract(b.args,'--http-port=(.*)'),a.args) http_port, 
-  b.locality->>'az' az, b.locality->>'region' region
+  b.locality->>'zone' az, b.locality->>'region' region
 from 
   (select node_id, '26257' args from crdb_internal.kv_node_status) a
 left join 
@@ -421,6 +421,44 @@ where
   and b.locality->>'$c' not in (select locality->>'$c' from crdb_internal.kv_node_status where node_id =(select node_id::int from [show node_id]))
 ;
 EOF
+}
+
+_crdb_ping() {
+  foo_usage() { echo "_crdb_ping: [-c <circle:-region>" 1>&2;}
+
+  local OPTIND c=region 
+  while getopts ":c:" o; do
+    case "${o}" in
+      c)
+        c="${OPTARG}"
+        ;;
+      *)
+        foo_usage
+        return
+        ;;
+    esac
+  done
+  shift $((OPTIND-1))
+
+  rm /tmp/_crdb_ping.*
+  _crdb_notmypeers | while read node_id addr http_port az region; do
+    addr_ip=`echo $addr | awk -F: '{print $1}'`
+    # echo "$node_id $addr $addr_ip $http_port $az $region"
+    ping -c 3 $addr_ip | tail -1 | awk -F'[ /]' '{print r " " $8}' r=$region >> /tmp/_crdb_ping.$node_id
+  done  
+  cat /tmp/_crdb_ping.* | awk '{s[$1]=s[$1]+$2; c[$1]=c[$1]+1;} END {for (key in s) {print key " " s[key]/c[key] " " s[key] " " c[key];}}' | sort -k2,4 > /tmp/_crdb_ping
+}
+
+# lease_preferences='[[+zone=us-east-1b], [+zone=us-east-1a]]';
+# _crdb_replicas
+_crdb_ping_leaseorder() {
+  local _crdb_replicas=${_crdb_replicas:-3}
+  _crdb_whereami | awk '{print $NF}' | cat - /tmp/_crdb_ping | awk 'BEGIN {printf "["}; {printf comma "[+region=" $1 "]"; comma=","; n=n+1; if (n >= max_n) {exit}} END {print "]"}' max_n=$_crdb_replicas
+}
+
+_crdb_ping_replicaorder() {
+  local _crdb_replicas=${_crdb_replicas:-3}
+  _crdb_whereami | awk '{print $NF}' | cat - /tmp/_crdb_ping | awk 'BEGIN {printf "{"}; {printf comma "\"+region=" $1 "\":1"; comma=","; n=n+1; if (n >= max_n) {exit}} END {print "}"}' max_n=$_crdb_replicas
 }
 
 _crdb_haproxy() {

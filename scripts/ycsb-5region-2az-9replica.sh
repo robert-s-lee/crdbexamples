@@ -1,8 +1,12 @@
 export f=robert-ycsb-5d2z9r
 export ver=v19.1.0-beta.20190318
-export replicas=9
+export branch=replica-lease
+export _crdb_replicas=5
+export _ycsb_replicas=3
+export _ycsb_insertcount=100000
 export COCKROACH_DEV_ORG='Cockroach Labs Training'
 export COCKROACH_DEV_LICENSE='crl-0-EIDA4OgGGAEiF0NvY2tyb2FjaCBMYWJzIFRyYWluaW5n'
+
 
 # 5 DC - 2 AZ per DC 9 way replicas
 roachprod create $f --geo --gce-zones \
