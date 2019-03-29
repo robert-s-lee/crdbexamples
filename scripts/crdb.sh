@@ -222,6 +222,12 @@ order by range_id
 EOF
 }
 
+_crdb_maps() {
+  _crdb_maps_aws
+  _crdb_maps_gcp
+  _crdb_maps_azure
+}
+
 # coordinates from https://www.cockroachlabs.com/docs/stable/enable-node-map.html
 _crdb_maps_aws() {
   cat <<-EOF | awk '{print "upsert into system.locations VALUES (" $0" );"}' | cockroach sql --insecure --host ${_crdb_host:-127.0.0.1}
@@ -440,7 +446,7 @@ _crdb_ping() {
   done
   shift $((OPTIND-1))
 
-  rm /tmp/_crdb_ping.*
+  rm /tmp/_crdb_ping.* 2>/dev/null
   _crdb_notmypeers | while read node_id addr http_port az region; do
     addr_ip=`echo $addr | awk -F: '{print $1}'`
     # echo "$node_id $addr $addr_ip $http_port $az $region"
@@ -491,5 +497,6 @@ local mynode=`_crdb_whereami | awk '{print $1}'`
 echo "# backup in my region -- randomized" >> haproxy.cfg
 _crdb_mypeers -r | grep -v "^${mynode}[ \t]*" | awk '{print "server cockroach" $1 " " $2 " check port " $3 " backup";}'    >> haproxy.cfg
 echo "# backup outside my region -- randomized" >> haproxy.cfg
+# use closer region first if available 
 _crdb_notmypeers -r | awk '{print "server cockroach" $1 " " $2 " check port " $3 " backup";}' >> haproxy.cfg
 } 
