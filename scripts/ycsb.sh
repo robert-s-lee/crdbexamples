@@ -41,8 +41,8 @@ _ycsb() {
     echo "_ycsb_recordcount=$_ycsb_recordcount"
     local delfrom=`echo 1 | awk "END {printf (\"user%0${_ycsb_zeropadding}d\", $_ycsb_recordcount)}"`
     local delend=`echo 1 | awk "END {printf (\"user%0${_ycsb_zeropadding}d\", ($_ycsb_recordcount + $_ycsb_insertcount - 1))}"`
-    echo "deleting temp data from workloads D and E from $delfrom to $delend"
     while [ "$deleted" != "DELETE 0" ]; do
+      echo "deleting temp data from workloads D and E from $delfrom to $delend"
       deleted=`cockroach sql -u ${_ycsb_user:-root} --insecure --format csv --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "delete from usertable where ycsb_key between '$delfrom' and '$delend' limit 10000;"`
       echo "$deleted"
     done

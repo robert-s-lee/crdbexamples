@@ -22,7 +22,7 @@ roachprod run $f:1 -- "PATH=~/:\$PATH;. ~/crdb.sh; _crdb_replicas=${_crdb_replic
 roachprod run $f -- "PATH=~/:\$PATH;. ~/crdb.sh; _crdb_ping"
 roachprod run $f -- "PATH=~/:\$PATH;. ~/crdb.sh; _crdb_haproxy;"
 roachprod run $f -- "PATH=~/:\$PATH; pkill -9 haproxy 2>/dev/null; haproxy -D -f ./haproxy.cfg &"
-roachprod run $f -- "PATH=~/:\$PATH;. ~/crdb.sh;. ~/ycsb.sh; _crdb_replicas=3 _ycsb_lease" # _crdb_replicas=3 covers 2 DC failures 
+roachprod run $f -- "PATH=~/:\$PATH;. ~/crdb.sh;. ~/ycsb.sh; _crdb_replicas=${_ycsb_replicas} _ycsb_lease" # _crdb_replicas=3 covers 2 DC failures 
 
 # load initial dataset 1,000,000 from each node, 16 thread each node
 roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=${_ycsb_insertcount} _ycsb_node=\`_ycsb_nodeid\`; _ycsb_port=26256 _ycsb_threads=4 _ycsb load a"
