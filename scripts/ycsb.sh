@@ -74,27 +74,35 @@ _ycsb() {
     pid=$!
     # sleep for  
     while [ ! -f "ycsb.log.$1.$2.err.${_ycsb_node}" ]; do
-      echo "waiting for ycsb.log.$1.$2.err.${_ycsb_node}"
+      echo "waiting logfile ycsb.log.$1.$2.err.${_ycsb_node} to exist"
       sleep 1   
     done
-    
-    tail -f ycsb.log.$1.$2.err.${_ycsb_node} | awk -v ops=${_ycsb_operationcount} '/^Error inserting,/ {exit 2}; /^Error/ {exit 1} $6=="operations;" && $5>=ops {print $0;exit}' >> ycsb.log.$1.$2.err.${_ycsb_node} 
+
+    echo "running $1 $2"
+    # for loading, just wait and then quit, don't do anything fancy   
+    if [ "$1" == "load" ]; then
+      wait
+      break
+    fi
+
+    # for running, restart the run if error is encountered
+    tail -f ycsb.log.$1.$2.err.${_ycsb_node} | awk -v ops=${_ycsb_operationcount} '/^Error in processing/ {exit 1} $6=="operations;" && $5>=ops {print $0;exit}' >> ycsb.log.$1.$2.err.${_ycsb_node} 
 
     case "$?" in
-    0) 
-      break
-      ;;
-    1)
-      echo kill -9 $pid
-      kill -9 $pid
-      echo sleep 5 give chance for haproxy to switch
-      sleep 5
-      ;;
-    2)
-      echo "Error insert with dup keys"
-      break
-      ;;
-    esac
+      0) 
+        break
+        ;;
+      1)
+        echo kill -9 $pid
+        kill -9 $pid
+        echo sleep 5 seconds to give haproxy to switch to next available CRDB node
+        sleep 5
+        ;;
+      *)
+        echo "unknown error.  not re-running"
+        break
+        ;;
+      esac
   done
 }
 
