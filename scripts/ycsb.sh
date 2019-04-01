@@ -49,45 +49,51 @@ _ycsb() {
  fi
 
   while [ 1 ]; do
-  rm ycsb.log.$1.$2.err.${_ycsb_node} 2>/dev/null
-$YCSB/bin/ycsb $1 jdbc -P $YCSB/workloads/workload${_ycsb_workload:-$2} \
-  -s \
-  -p threadcount=${_ycsb_threads:-1} \
-  -p target=${_ycsb_target:-0} \
-  -p db.user=${_ycsb_user:-root} \
-  -p db.driver=org.postgresql.Driver \
-  -p db.dialect=${_ycsb_dbdialect:-jdbc:postgresql} \
-  -p db.url=jdbc:postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}?reWriteBatchedInserts=true\&ApplicationName=${_ycsb_db:-defaultdb}_${2}_${_ycsb_insertstart} \
-  -p jdbc.batchupdateapi=true \
-  -p db.batchsize=${_ycsb_batchsize:-128} \
-  -p fieldcount=${_ycsb_fieldcount:-10} \
-  -p fieldlength=${_ycsb_fieldlength:-100} \
-  -p zeropadding=${_ycsb_zeropadding:-1} \
-  -p insertorder=${_ycsb_insertorder:-ordered} \
-  -p requestdistribution=${_ycsb_requestdistribution:-uniform} \
-  -p insertstart=${_ycsb_insertstart:-100000} \
-  -p insertcount=${_ycsb_insertcount} \
-  -p recordcount=${_ycsb_recordcount:-0} \
-  -p operationcount=${_ycsb_operationcount:-10000} \
-  > ycsb.log.$1.$2.${_ycsb_node} 2> ycsb.log.$1.$2.err.${_ycsb_node} &
- 
-  pid=$!
-  # sleep for  
-  while [ ! -f "ycsb.log.$1.$2.err.${_ycsb_node}" ]; do
-    echo "waiting for ycsb.log.$1.$2.err.${_ycsb_node}"
-    sleep 1   
-  done
-  
-  tail -f ycsb.log.$1.$2.err.${_ycsb_node} | awk -v ops=${_ycsb_operationcount} '/^Error/ {exit 1} $6=="operations;" && $5>=ops {print $0;exit}' >> ycsb.log.$1.$2.err.${_ycsb_node} 
+    rm ycsb.log.$1.$2.err.${_ycsb_node} 2>/dev/null
+  $YCSB/bin/ycsb $1 jdbc -P $YCSB/workloads/workload${_ycsb_workload:-$2} \
+    -s \
+    -p threadcount=${_ycsb_threads:-1} \
+    -p target=${_ycsb_target:-0} \
+    -p db.user=${_ycsb_user:-root} \
+    -p db.driver=org.postgresql.Driver \
+    -p db.dialect=${_ycsb_dbdialect:-jdbc:postgresql} \
+    -p db.url=jdbc:postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}?reWriteBatchedInserts=true\&ApplicationName=${_ycsb_db:-defaultdb}_${2}_${_ycsb_insertstart} \
+    -p jdbc.batchupdateapi=true \
+    -p db.batchsize=${_ycsb_batchsize:-128} \
+    -p fieldcount=${_ycsb_fieldcount:-10} \
+    -p fieldlength=${_ycsb_fieldlength:-100} \
+    -p zeropadding=${_ycsb_zeropadding:-1} \
+    -p insertorder=${_ycsb_insertorder:-ordered} \
+    -p requestdistribution=${_ycsb_requestdistribution:-uniform} \
+    -p insertstart=${_ycsb_insertstart:-100000} \
+    -p insertcount=${_ycsb_insertcount} \
+    -p recordcount=${_ycsb_recordcount:-0} \
+    -p operationcount=${_ycsb_operationcount:-10000} \
+    > ycsb.log.$1.$2.${_ycsb_node} 2> ycsb.log.$1.$2.err.${_ycsb_node} &
+   
+    pid=$!
+    # sleep for  
+    while [ ! -f "ycsb.log.$1.$2.err.${_ycsb_node}" ]; do
+      echo "waiting for ycsb.log.$1.$2.err.${_ycsb_node}"
+      sleep 1   
+    done
+    
+    tail -f ycsb.log.$1.$2.err.${_ycsb_node} | awk -v ops=${_ycsb_operationcount} '/^Error inserting,/ {exit 2}; /^Error/ {exit 1} $6=="operations;" && $5>=ops {print $0;exit}' >> ycsb.log.$1.$2.err.${_ycsb_node} 
 
-  if [ "$?" == "0" ]; then
-    break
-  else
-    echo kill -9 $pid
-    kill -9 $pid
-    echo sleep 5 give chance for haproxy to switch
-    sleep 5
-  fi
+    case "$?" in
+    0) 
+      break
+      ;;
+    1)
+      echo kill -9 $pid
+      kill -9 $pid
+      echo sleep 5 give chance for haproxy to switch
+      sleep 5
+      ;;
+    2)
+      break
+      ;;
+    esac
   done
 }
 
