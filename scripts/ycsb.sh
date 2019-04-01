@@ -91,6 +91,7 @@ _ycsb() {
       sleep 5
       ;;
     2)
+      echo "Error insert with dup keys"
       break
       ;;
     esac
