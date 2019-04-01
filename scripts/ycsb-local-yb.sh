@@ -12,36 +12,13 @@ export COCKROACH_DEV_ORG='Cockroach Labs Training'
 export COCKROACH_DEV_LICENSE='crl-0-EIDA4OgGGAEiF0NvY2tyb2FjaCBMYWJzIFRyYWluaW5n'
 
 # 4 DC - 3 AZ per DC 3 way replicas
-_crdb -c gcp europe-west1-b europe-west1-b  \
-             europe-west1-c europe-west1-c  \
-             europe-west1-d europe-west1-d  \
-             europe-west2-a                 \
-             europe-west2-b europe-west2-b  \
-             europe-west2-c                 \
-             europe-west3-a                 \
-             europe-west3-b                 \
-             europe-west3-c 
-
-_crdb -c aws eu-west-1a eu-west-1a \
-             eu-west-1b eu-west-1b \
-             eu-west-1c eu-west-1c \
-            eu-west-2a \
-            eu-west-2b eu-west-2b \
-            eu-west-2c \
-            eu-central-1a \
-            eu-central-1b \
-            eu-central-1c 
-
-_crdb -c gcp europe-west1-b europe-west2-a europe-west3-a europe-west1-c
-_crdb -c gcp europe-west1-b europe-west2-a europe-west3-a europe-west4-a europe-west6-a europe-west1-c
-
+_crdb -c gcp europe-west1-b europe-west2-a europe-west3-a europe-west1-c europe-west2-c europe-west3-b 
 _crdb -c gcp us-west2-a us-west2-b us-west1-a us-west1-b us-east1-b us-east1-c us-east4-a us-east4-b
 _crdb -c gcp us-west2-a us-west1-a us-east1-b us-east4-a
-_crdb -c gcp us-west2-a us-west1-a us-east1-a
 
 # setup the schema with default 5 way replica 
-_crdb_haproxy
-haproxy -D -f ./haproxy.cfg &
+roachprod run $f -- "PATH=~/:\$PATH;. ~/crdb.sh; _crdb_haproxy;"
+roachprod run $f -- "PATH=~/:\$PATH;haproxy -D -f ./haproxy.cfg &"
 
 _crdb_num_replicas -r ${_crdb_replicas}
 
@@ -67,6 +44,13 @@ done
 for w in a b c d e f; do 
 version=19.1.20190318;scenario=run;w=$w;r=3;cat ycsb.log.run.$w.* | _ycsb_report
 done
+
+_ycsb_node=1; _ycsb_db=postgres; _ycsb_port=5433; _ycsb_user=postgres; _ycsb load a
+for w in a b c d e f; do 
+_ycsb_node=1; _ycsb_db=postgres; _ycsb_port=5433; _ycsb_user=postgres; _ycsb run $w
+sleep 5
+done
+
 
 # kill any java running
 pkill -9 java

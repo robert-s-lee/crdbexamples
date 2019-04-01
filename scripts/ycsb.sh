@@ -22,51 +22,88 @@
 
 
 _ycsb() {
+  local _ycsb_recordcount=${_ycsb_recordcount:-0}
   local _ycsb_insertcount=${_ycsb_insertcount:-100000}
-
-  if [ ! -z "${_ycsb_node}" ]; then
-    local _ycsb_insertstart
-    local _ycsb_zeropadding
-    local _ycsb_recordcount
-    _ycsb_insertstart=$(($_ycsb_insertcount * ($_ycsb_node - 1)))
-    _ycsb_zeropadding=$((2 + ${#_ycsb_insertcount}))
-    _ycsb_insertcount=$(($_ycsb_insertcount / 2))
-    _ycsb_recordcount=$(($_ycsb_insertstart + $_ycsb_insertcount))
-  fi
 
   if [ ! -d $YCSB/bin ]; then echo "YCSB shoud contain $YCSB/bin directory"; return 1; fi
 
   if [ "$1" == "init" ]; then _ycsb_init; return 0; fi
 
-  local deleted
-  local delfrom=`echo 1 | awk "END {printf (\"user%0${_ycsb_zeropadding}d\", $_ycsb_recordcount)}"`
-  local delend=`echo 1 | awk "END {printf (\"user%0${_ycsb_zeropadding}d\", ($_ycsb_recordcount + $_ycsb_insertcount - 1))}"`
+  if [ ! -z "${_ycsb_node}" ]; then
+    local deleted
+    local _ycsb_insertstart
+    local _ycsb_zeropadding
+    _ycsb_insertstart=$(($_ycsb_insertcount * ($_ycsb_node - 1)))
+    _ycsb_zeropadding=$((2 + ${#_ycsb_insertcount}))
+    _ycsb_insertcount=$(($_ycsb_insertcount / 2))
+    _ycsb_recordcount=$(($_ycsb_insertstart + $_ycsb_insertcount))
+ 
+    echo "_ycsb_recordcount=$_ycsb_recordcount"
+    local delfrom=`echo 1 | awk "END {printf (\"user%0${_ycsb_zeropadding}d\", $_ycsb_recordcount)}"`
+    local delend=`echo 1 | awk "END {printf (\"user%0${_ycsb_zeropadding}d\", ($_ycsb_recordcount + $_ycsb_insertcount - 1))}"`
+    while [ "$deleted" != "DELETE 0" ]; do
+      echo "deleting temp data from workloads D and E from $delfrom to $delend"
+      deleted=`cockroach sql -u ${_ycsb_user:-root} --insecure --format csv --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "delete from usertable where ycsb_key between '$delfrom' and '$delend' limit 10000;"`
+      echo "$deleted"
+    done
+ fi
 
-  echo "deleting temp data from workloads D and E $delfrom $delend"
-  while [ "$deleted" != "DELETE 0" ]; do
-    deleted=`cockroach sql -u root --insecure --format csv --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "delete from usertable where ycsb_key between '$delfrom' and '$delend' limit 10000;"`
-    echo "$deleted"
+  while [ 1 ]; do
+    rm ycsb.log.$1.$2.err.${_ycsb_node} 2>/dev/null
+  $YCSB/bin/ycsb $1 jdbc -P $YCSB/workloads/workload${_ycsb_workload:-$2} \
+    -s \
+    -p threadcount=${_ycsb_threads:-1} \
+    -p target=${_ycsb_target:-0} \
+    -p db.user=${_ycsb_user:-root} \
+    -p db.driver=org.postgresql.Driver \
+    -p db.dialect=${_ycsb_dbdialect:-jdbc:postgresql} \
+    -p db.url=jdbc:postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}?reWriteBatchedInserts=true\&ApplicationName=${_ycsb_db:-defaultdb}_${2}_${_ycsb_insertstart} \
+    -p jdbc.batchupdateapi=true \
+    -p db.batchsize=${_ycsb_batchsize:-128} \
+    -p fieldcount=${_ycsb_fieldcount:-10} \
+    -p fieldlength=${_ycsb_fieldlength:-100} \
+    -p zeropadding=${_ycsb_zeropadding:-1} \
+    -p insertorder=${_ycsb_insertorder:-ordered} \
+    -p requestdistribution=${_ycsb_requestdistribution:-uniform} \
+    -p insertstart=${_ycsb_insertstart:-100000} \
+    -p insertcount=${_ycsb_insertcount} \
+    -p recordcount=${_ycsb_recordcount:-0} \
+    -p operationcount=${_ycsb_operationcount:-10000} \
+    > ycsb.log.$1.$2.${_ycsb_node} 2> ycsb.log.$1.$2.err.${_ycsb_node} &
+   
+    pid=$!
+    # sleep for  
+    while [ ! -f "ycsb.log.$1.$2.err.${_ycsb_node}" ]; do
+      echo "waiting logfile ycsb.log.$1.$2.err.${_ycsb_node} to exist"
+      sleep 1   
+    done
+
+    echo "running $1 $2"
+    # for loading, just wait and then quit, don't do anything fancy   
+    if [ "$1" == "load" ]; then
+      wait
+      break
+    fi
+
+    # for running, restart the run if error is encountered
+    tail -f ycsb.log.$1.$2.err.${_ycsb_node} | awk -v ops=${_ycsb_operationcount} '/^Error in processing/ {exit 1} $6=="operations;" && $5>=ops {print $0;exit}' >> ycsb.log.$1.$2.err.${_ycsb_node} 
+
+    case "$?" in
+      0) 
+        break
+        ;;
+      1)
+        echo kill -9 $pid
+        kill -9 $pid
+        echo sleep 5 seconds to give haproxy to switch to next available CRDB node
+        sleep 5
+        ;;
+      *)
+        echo "unknown error.  not re-running"
+        break
+        ;;
+      esac
   done
-
-
-$YCSB/bin/ycsb $1 jdbc -s -P $YCSB/workloads/workload${_ycsb_workload:-$2} \
-  -p db.user=${_ycsb_user:-root} \
-  -p db.driver=org.postgresql.Driver \
-  -p db.dialect=${_ycsb_dbdialect:-jdbc:postgresql} \
-  -p db.url=jdbc:postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}?reWriteBatchedInserts=true\&ApplicationName=${_ycsb_db:-defaultdb}_${2}_${_ycsb_insertstart} \
-  -p jdbc.batchupdateapi=true \
-  -p db.batchsize=${_ycsb_batchsize:-128} \
-  -p fieldcount=${_ycsb_fieldcount:-10} \
-  -p fieldlength=${_ycsb_fieldlength:-100} \
-  -p zeropadding=${_ycsb_zeropadding:-1} \
-  -p insertorder=${_ycsb_insertorder:-ordered} \
-  -p requestdistribution=${_ycsb_requestdistribution:-uniform} \
-  -p threadcount=${_ycsb_threads:-1} \
-  -p insertstart=${_ycsb_insertstart:-100000} \
-  -p insertcount=${_ycsb_insertcount} \
-  -p recordcount=${_ycsb_recordcount:-0} \
-  -p operationcount=${_ycsb_operationcount:-10000} \
-  > ycsb.log.$1.$2.${_ycsb_node}
 }
 
 _ycsb_nodeid() {

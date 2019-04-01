@@ -17,7 +17,7 @@
 # examples to setup without locality
 #   _crdb; _crdb; _crdb
 _crdb() {
-  foo_usage() { echo "_crdb: [-c <aws|gcp>]" 1>&2; return; }
+  foo_usage() { echo "_crdb: [-c <aws|gcp>] [-i {use init instead of join}]" 1>&2; return; }
 
   _crdb_instance=${_crdb_instance:-1}
   local _crdb_port=${_crdb_port:-26257}
@@ -29,11 +29,14 @@ _crdb() {
   local _http_port
   local _loc
 
-  local OPTIND c
-  while getopts ":c:" o; do
+  local OPTIND c i
+  while getopts ":ic:" o; do
     case "${o}" in
       c)
         c="${OPTARG}"
+        ;;
+      i)
+        i="init"
         ;;
       *)
         foo_usage
@@ -41,6 +44,11 @@ _crdb() {
     esac
   done
   shift $((OPTIND-1))
+
+  # init style 
+  if [ "$i" ]; then
+    _crdb_join=`echo "--join=" | awk -v n=$# -v pg=$_crdb_port '{for (i=0;i <n; i++) {j=j c "localhost:" pg + 2 * i; c=",";}; print $1 j}'`
+  fi
 
   while [ 1 ]; do
     _loc=$1
@@ -59,22 +67,14 @@ _crdb() {
 
     # locality and join command options
     if [ ! -z "$_loc" ]; then _crdb_locality="--locality=$_loc"; fi
-    if [ "$_crdb_instance" != "1" ]; then 
+    # don't change if using init
+    if [ -z "${i}" -a "$_crdb_instance" != "1" ]; then 
       _crdb_join="--join=localhost:$_crdb_port"
     fi
 
     # start the process
     cockroach start --insecure --port=${_port} --http-port=${_http_port} --store=cockroach-data/${_crdb_instance} --cache=256MiB --background $_crdb_join $_crdb_locality
     echo "${_port}|${_http_port}|${_crdb_instance}|$_crdb_join|$_crdb_locality" > /tmp/_crdb.pid.${_crdb_instance}
-
-    # set the license and map if available
-    if [ "$_crdb_instance" = "1" -a ! -z "$COCKROACH_DEV_ORG" -a ! -z "$COCKROACH_DEV_LICENSE" ]; then 
-      cockroach sql --insecure --port=${_port} -e "set cluster setting cluster.organization='$COCKROACH_DEV_ORG'; set cluster setting enterprise.license='$COCKROACH_DEV_LICENSE';"
-      _crdb_maps_gcp
-      _crdb_maps_aws
-      _crdb_maps_azure
-    fi
-
     # next instance number
     ((_crdb_instance=$_crdb_instance+1))
     echo "next instance = $_crdb_instance"
@@ -82,7 +82,21 @@ _crdb() {
     if [ -z "$1" ]; then break; fi
     sleep 1
   done
+
+  if [ ! -z "${i}" ]; then
+    cockroach init --insecure --host=localhost:${_crdb_port}
+  fi
+
+  # set the license and map if available
+  if [ ! -z "$COCKROACH_DEV_ORG" -a ! -z "$COCKROACH_DEV_LICENSE" ]; then 
+    cockroach sql --insecure --port=${_crdb_port} -e "set cluster setting cluster.organization='$COCKROACH_DEV_ORG'; set cluster setting enterprise.license='$COCKROACH_DEV_LICENSE';"
+    _crdb_maps_gcp
+    _crdb_maps_aws
+    _crdb_maps_azure
+  fi
+
 }
+
 
 # stop and restart by looking at /_crdb.pid.instance_number
 # $1 = instance number (1 - n)
@@ -220,6 +234,12 @@ having count(distinct(region)) < count(region)
 order by range_id 
 ;
 EOF
+}
+
+_crdb_maps() {
+  _crdb_maps_aws
+  _crdb_maps_gcp
+  _crdb_maps_azure
 }
 
 # coordinates from https://www.cockroachlabs.com/docs/stable/enable-node-map.html
@@ -440,7 +460,7 @@ _crdb_ping() {
   done
   shift $((OPTIND-1))
 
-  rm /tmp/_crdb_ping.*
+  rm /tmp/_crdb_ping.* 2>/dev/null
   _crdb_notmypeers | while read node_id addr http_port az region; do
     addr_ip=`echo $addr | awk -F: '{print $1}'`
     # echo "$node_id $addr $addr_ip $http_port $az $region"
@@ -491,5 +511,6 @@ local mynode=`_crdb_whereami | awk '{print $1}'`
 echo "# backup in my region -- randomized" >> haproxy.cfg
 _crdb_mypeers -r | grep -v "^${mynode}[ \t]*" | awk '{print "server cockroach" $1 " " $2 " check port " $3 " backup";}'    >> haproxy.cfg
 echo "# backup outside my region -- randomized" >> haproxy.cfg
+# use closer region first if available 
 _crdb_notmypeers -r | awk '{print "server cockroach" $1 " " $2 " check port " $3 " backup";}' >> haproxy.cfg
 } 
