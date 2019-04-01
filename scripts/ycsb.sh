@@ -73,10 +73,10 @@ $YCSB/bin/ycsb $1 jdbc -P $YCSB/workloads/workload${_ycsb_workload:-$2} \
  
   pid=$!
   # sleep for  
-  if [ ! -f ycsb.log.$1.$2.err.${_ycsb_node} ]; then
+  while [ ! -f "ycsb.log.$1.$2.err.${_ycsb_node}" ]; do
     echo "waiting for ycsb.log.$1.$2.err.${_ycsb_node}"
     sleep 1   
-  fi
+  done
   
   tail -f ycsb.log.$1.$2.err.${_ycsb_node} | awk -v ops=${_ycsb_operationcount} '/^Error/ {exit 1} $6=="operations;" && $5>=ops {print $0;exit}' >> ycsb.log.$1.$2.err.${_ycsb_node} 
 
