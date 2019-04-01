@@ -1,4 +1,4 @@
-YCSB is an widely used open source database benchmark.  
+YCSB is an widely used open source database benchmark.
 A vast number of RDBMS, NoSQL and NewSQL support YCSB.
 It is common to find YCSB throughput and latency figures.
 Higher througput and low latency are classified as better in these comparison.
@@ -203,13 +203,13 @@ The below shows default assumption of batch size of 1 showing direct relationshi
 | Concurrency        |   32      |     32    |
 | Total rows per sec | 2,000 TPS | 1,000 TPS |  
 
-
+What is batch size 
 |                    |   Test A  |   Test B  |
 |--------------------| --------- | ----------| 
 | Response Time      | 16 ms     |   32 ms   |
 | Batch Size         |   4       |     1     |
 | Concurrency        |   32      |     32    |
-| Total rows per sec | 2,000 TPS | 1,000 TPS |  
+| Total rows per sec | 4,000 TPS | 1,000 TPS |  
 
 
 16 threads, each threads

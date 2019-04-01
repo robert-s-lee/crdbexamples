@@ -28,10 +28,10 @@ roachprod run $f -- "PATH=~/:\$PATH;. ~/crdb.sh;. ~/ycsb.sh; _crdb_replicas=${_y
 roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=${_ycsb_insertcount} _ycsb_node=\`_ycsb_nodeid\`; _ycsb_port=26256 _ycsb_threads=4 _ycsb load a"
 
 # run workload b, 8 thread each node using AOST
-roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=${_ycsb_insertcount} _ycsb_operationcount=500000 _ycsb_node=\`_ycsb_nodeid\`; _ycsb_port=26256 _ycsb_threads=16 _ycsb_dbdialect=jdbc:cockroach _ycsb run e";
+roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=${_ycsb_insertcount} _ycsb_operationcount=500000 _ycsb_node=\`_ycsb_nodeid\`; _ycsb_port=26256 _ycsb_threads=4 _ycsb_dbdialect=jdbc:cockroach _ycsb run a";
 
 # run workload b, 8 thread each node NOT using AOST
-roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=${_ycsb_insertcount} _ycsb_operationcount=1000000 _ycsb_node=\`_ycsb_nodeid\`; _ycsb_port=26256  _ycsb_threads=16 _ycsb_dbdialect=jdbc:postgresql _ycsb run f"
+roachprod run $f -- "PATH=~/:\$PATH;. ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.16.0-SNAPSHOT; _ycsb_insertcount=${_ycsb_insertcount} _ycsb_operationcount=1000000 _ycsb_node=\`_ycsb_nodeid\`; _ycsb_port=26256  _ycsb_threads=4 _ycsb_dbdialect=jdbc:postgresql _ycsb run a"
 
 # kill any java running
 roachprod run $f -- "pkill -9 java"

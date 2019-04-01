@@ -1,6 +1,6 @@
 export f=robert-ycsb-4d2z3r
 export ver=v19.1.0-beta.20190318
-export branch=replica-lease
+export branch=master
 export _crdb_replicas=5
 export _ycsb_replicas=3
 export _ycsb_insertcount=100000
