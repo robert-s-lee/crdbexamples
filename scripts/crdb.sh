@@ -17,7 +17,7 @@
 # examples to setup without locality
 #   _crdb; _crdb; _crdb
 _crdb() {
-  foo_usage() { echo "_crdb: [-c <aws|gcp>] [-i {use init instead of join}]" 1>&2; return; }
+  foo_usage() { echo "_crdb: [-c <aws|gcp>] [-j {use join instead of init}]" 1>&2; return; }
 
   _crdb_instance=${_crdb_instance:-1}
   local _crdb_port=${_crdb_port:-26257}
@@ -29,14 +29,14 @@ _crdb() {
   local _http_port
   local _loc
 
-  local OPTIND c i
+  local OPTIND c i="init"
   while getopts ":ic:" o; do
     case "${o}" in
       c)
         c="${OPTARG}"
         ;;
       i)
-        i="init"
+        i="join"
         ;;
       *)
         foo_usage
@@ -68,7 +68,7 @@ _crdb() {
     # locality and join command options
     if [ ! -z "$_loc" ]; then _crdb_locality="--locality=$_loc"; fi
     # don't change if using init
-    if [ -z "${i}" -a "$_crdb_instance" != "1" ]; then 
+    if [ "${i}" == "join" -a "$_crdb_instance" != "1" ]; then 
       _crdb_join="--join=localhost:$_crdb_port"
     fi
 
@@ -83,7 +83,7 @@ _crdb() {
     sleep 1
   done
 
-  if [ ! -z "${i}" ]; then
+  if [ "${i}" == "init" ]; then
     cockroach init --insecure --host=localhost:${_crdb_port}
   fi
 
