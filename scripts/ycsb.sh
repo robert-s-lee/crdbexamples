@@ -86,13 +86,13 @@ _ycsb() {
     fi
 
     # for running, restart the run if error is encountered
-    tail -f ycsb.log.$1.$2.err.${_ycsb_node} | awk -v ops=${_ycsb_operationcount} '/^Error in processing/ {exit 1} $6=="operations;" && $5>=ops {print $0;exit}' >> ycsb.log.$1.$2.err.${_ycsb_node} 
+    tail -f ycsb.log.$1.$2.err.${_ycsb_node} | awk -v ops=${_ycsb_operationcount} '/^Error in processing/ {exit 1} /This connection has been closed.$/ {exit 2} $6=="operations;" && $5>=ops {print $0;exit}' >> ycsb.log.$1.$2.err.${_ycsb_node} 
 
     case "$?" in
       0) 
         break
         ;;
-      1)
+      1|2)
         echo kill -9 $pid
         kill -9 $pid
         echo sleep 5 seconds to give haproxy to switch to next available CRDB node
@@ -142,14 +142,22 @@ EOF
 #    FIELD8 VARCHAR, FIELD9 VARCHAR
 #  );
 _ycsb_ddl() {
+  local i
   local sql="create database if not exists ${_ycsb_db:-defaultdb}; \
     SET CLUSTER SETTING kv.range_merge.queue_enabled = false; \
     SET CLUSTER SETTING kv.closed_timestamp.follower_reads_enabled = true; \
     CREATE TABLE if not exists ${_ycsb_db:-defaultdb}.usertable( \
-    YCSB_KEY VARCHAR PRIMARY KEY"
-  for s in `seq 0 $((${_ycsb_fieldcount:-10}-1))`; do 
-    sql="${sql},FIELD${s} VARCHAR"
+    YCSB_KEY VARCHAR "
+  for (( i=0; i<=${_ycsb_fieldcount:-10}-1; i++ ))
+  do
+    sql="${sql},FIELD${i} VARCHAR"
   done
+  sql="${sql},primary key(YCSB_KEY"
+  for (( i=0; i<${_ycsb_pkeycount:-0}; i++ ))
+  do  
+    sql="${sql},FIELD${i}"
+  done
+  sql="${sql})"
   echo "$sql"
 }
 
