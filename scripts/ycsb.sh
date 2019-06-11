@@ -230,7 +230,7 @@ _ycsb_part() {
   local comma=""
   local part_begin=$part_min
   local part_end
-  part_keys="${@:-`cockroach node ls --insecure | tail -n +2 | sort -g`}"
+  part_keys="${@:-`cockroach node ls --insecure --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}" | tail -n +2 | sort -g`}"
   for p in $part_keys; do
     p=$(( $p - 1 ))
     part_end=`printf "'user%03d'" $(($p+1))`
@@ -244,7 +244,7 @@ _ycsb_part() {
     sql="$sql $comma PARTITION user$part_max VALUES FROM ($part_begin) TO ($part_max)"
     sql="$sql );"
     echo $sql
-    cockroach sql -u root --insecure --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "$sql"
+    cockroach sql --insecure --url "postgresql://root@${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "$sql"
   fi
 }
 
