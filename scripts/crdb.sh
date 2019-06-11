@@ -326,7 +326,7 @@ _crdb_maps_azure() {
 _crdb_whereami() {
 foo_usage() { echo "_crdb_whereami: [-h <hostname:-`hostname`] [-p <port:-26257]" 1>&2; }
 
-  local OPTIND h=${_crdb_hostname:-`hostname`} p=${_crdb_port:-26257}
+  local OPTIND h=${_crdb_host:-`hostname`} p=${_crdb_port:-26257}
   while getopts ":h:p:" o; do
     case "${o}" in
       h)
@@ -362,7 +362,7 @@ EOF
 _crdb_mypeers() {
 foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] [-c <circle:-region>] [-r random output]" 1>&2;}
 
-  local OPTIND h=${_crdb_hostname:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
+  local OPTIND h=${_crdb_host:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
   while getopts ":h:p:c:r" o; do
     case "${o}" in
       h)
@@ -408,7 +408,7 @@ EOF
 _crdb_notmypeers() {
 foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] [-c <circle:-region>"] [-r random output] 1>&2;}
 
-  local OPTIND h=${_crdb_hostname:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
+  local OPTIND h=${_crdb_host:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
   while getopts ":h:p:c:r" o; do
     case "${o}" in
       h)
