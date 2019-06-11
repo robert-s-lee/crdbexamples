@@ -1,5 +1,5 @@
 export f=robert-ycsb-5d2z9r
-export ver=v19.1.0-beta.20190318
+export ver=v19.1.1
 export branch=master
 export _crdb_replicas=9
 export _ycsb_replicas=9

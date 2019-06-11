@@ -1,6 +1,6 @@
 export f=robert-ycsb-3d1z1r
-export ver=v19.1.0-beta.20190318
-export branch=better-doc
+export ver=v19.1.1
+export branch=master
 export _crdb_replicas=5
 export _ycsb_replicas=3
 export _ycsb_insertcount=100000

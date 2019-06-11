@@ -3,8 +3,6 @@
 . ~/github/crdbexamples/scripts/crdb.sh
 . ~/github/crdbexamples/scripts/ycsb.sh
 
-export f=robert-ycsb-3d2z5r
-export ver=v19.1.0-beta.20190318
 export _crdb_replicas=5
 export _ycsb_replicas=3
 export _ycsb_insertcount=10000
@@ -54,7 +52,7 @@ cockroach node status --insecure | tail -n +2 |  awk -F'[ :\t]' '{print $3}' | w
 cockroach node status --insecure | tail -n +2 |  awk -F'[ :\t]' '{print $1 " " $3}' | while read _ycsb_node _crdb_port; do  _ycsb load a; done
 
 # run the workloads
-for w in a b c d e f; do 
+for w in e; do 
 cockroach node status --insecure | tail -n +2 |  awk -F'[ :\t]' '{print $1 " " $3}' | while read _ycsb_node _crdb_port; do  _ycsb run $w; done
 done
 
