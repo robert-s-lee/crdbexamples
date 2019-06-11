@@ -395,7 +395,7 @@ left join
 on a.node_id = b.node_id
 where 
   b.args like '--http-port=%' 
-  and b.locality='{}' or b.locality->>'$c' in (select locality->>'$c' from crdb_internal.kv_node_status where node_id = (select node_id::int from [show node_id])
+  and (b.locality='{}' or b.locality->>'$c' in (select locality->>'$c' from crdb_internal.kv_node_status where node_id = (select node_id::int from [show node_id]))
 )
 ;
 EOF
@@ -441,7 +441,7 @@ left join
 on a.node_id = b.node_id
 where 
   b.args like '--http-port=%' 
-  and b.locality='{}' or b.locality->>'$c' not in (select locality->>'$c' from crdb_internal.kv_node_status where node_id =(select node_id::int from [show node_id]))
+  and (b.locality='{}' or b.locality->>'$c' not in (select locality->>'$c' from crdb_internal.kv_node_status where node_id =(select node_id::int from [show node_id])))
 ;
 EOF
 }
