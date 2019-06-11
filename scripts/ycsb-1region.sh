@@ -4,6 +4,7 @@ export branch=master
 export _crdb_replicas=5
 export _ycsb_replicas=3
 export _ycsb_insertcount=1000000
+export _ycsb_operationcount=100000
 export COCKROACH_DEV_ORG='Cockroach Labs Training'
 export COCKROACH_DEV_LICENSE='crl-0-EIDA4OgGGAEiF0NvY2tyb2FjaCBMYWJzIFRyYWluaW5n'
 
