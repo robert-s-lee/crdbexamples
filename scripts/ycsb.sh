@@ -50,6 +50,7 @@ _ycsb() {
 
   while [ 1 ]; do
     rm ycsb.log.$1.$2.err.${_ycsb_node} 2>/dev/null
+    set -x
   $YCSB/bin/ycsb $1 jdbc -P $YCSB/workloads/workload${_ycsb_workload:-$2} \
     -s \
     -p threadcount=${_ycsb_threads:-1} \
@@ -70,7 +71,7 @@ _ycsb() {
     -p recordcount=${_ycsb_recordcount:-0} \
     -p operationcount=${_ycsb_operationcount:-10000} \
     > ycsb.log.$1.$2.${_ycsb_node} 2> ycsb.log.$1.$2.err.${_ycsb_node} &
-   
+   set +x
     pid=$!
     # sleep for  
     while [ ! -f "ycsb.log.$1.$2.err.${_ycsb_node}" ]; do
@@ -229,7 +230,7 @@ _ycsb_part() {
   local comma=""
   local part_begin=$part_min
   local part_end
-  part_keys="${@:-`cockroach node ls --insecure | tail -n +2 | sort -g`}"
+  part_keys="${@:-`cockroach node ls --insecure --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}" | tail -n +2 | sort -g`}"
   for p in $part_keys; do
     p=$(( $p - 1 ))
     part_end=`printf "'user%03d'" $(($p+1))`
@@ -243,7 +244,7 @@ _ycsb_part() {
     sql="$sql $comma PARTITION user$part_max VALUES FROM ($part_begin) TO ($part_max)"
     sql="$sql );"
     echo $sql
-    cockroach sql -u root --insecure --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "$sql"
+    cockroach sql --insecure --url "postgresql://root@${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "$sql"
   fi
 }
 
@@ -269,12 +270,14 @@ _ycsb_lease() {
   local lease_order=`_crdb_ping_leaseorder`
   local replica_order=`_crdb_ping_replicaorder`
   _crdb_whereami | while read node_id addr http_port az region; do
-    node_id=$(( $node_id - 1 ))
-    echo  "$node_id $addr $http_port $az $region"
-    sql="ALTER PARTITION user$node_id OF TABLE ${_ycsb_db:-defaultdb}.usertable \
-      CONFIGURE ZONE USING constraints='$replica_order', lease_preferences='$lease_order';"
-    echo $sql
-    cockroach sql -u root --insecure --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "$sql"
+    if [ "$az" != "NULL" ]  || [ "$region" != "NULL" ]; then
+      node_id=$(( $node_id - 1 ))
+      echo  "$node_id $addr $http_port $az $region"
+      sql="ALTER PARTITION user$node_id OF TABLE ${_ycsb_db:-defaultdb}.usertable \
+        CONFIGURE ZONE USING constraints='$replica_order', lease_preferences='$lease_order';"
+      echo $sql
+      cockroach sql -u root --insecure --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "$sql"
+    fi
   done
 }
 

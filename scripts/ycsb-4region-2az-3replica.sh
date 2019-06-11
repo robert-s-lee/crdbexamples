@@ -1,5 +1,5 @@
 export f=robert-ycsb-4d2z3r
-export ver=v19.1.0-beta.20190318
+export ver=v19.1.1
 export branch=master
 export _crdb_replicas=5
 export _ycsb_replicas=3
@@ -11,7 +11,7 @@ export COCKROACH_DEV_LICENSE='crl-0-EIDA4OgGGAEiF0NvY2tyb2FjaCBMYWJzIFRyYWluaW5n
 
 # Europe
 roachprod create $f --geo --gce-zones \
-europe-west1-b,europe-west2-a,europe-west3-a,europe-west4-a,europe-west1-c,europe-west2-c,europe-west3-b,europe-west4-b \
+europe-west1-b,europe-west2-a,europe-west3-a,europe-west4-a,europe-west1-c,europe-west2-c,europe-west3-c,europe-west4-b \
  -n 8 --local-ssd-no-ext4-barrier
 
 # US

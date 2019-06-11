@@ -1,0 +1,28 @@
+create table cars (
+  vin varchar(17) primary key,
+  wmi STRING AS (substr(vin,1,3)) STORED,
+  vehicle_description STRING AS (substr(vin,4,6)) STORED,
+  modelyear string as (substr(vin,10,1)) STORED,
+  plant_code string as (substr(vin,11,1)) STORED,
+  sequential_number string as (substr(vin,12,6)) STORED
+);
+
+insert into cars (vin) values ('1HGBH41JXMN109186');
+
+create table cars2 (
+  wmi STRING,
+  vehicle_description STRING,
+  modelyear string,
+  plant_code string,
+  sequential_number string,
+  primary key (wmi, modelyear, vehicle_description, plant_code, sequential_number) 
+);
+
+ALTER TABLE cars2
+  PARTITION BY LIST (wmi) (
+    PARTITION north_america VALUES IN ('1HG')
+      partition by list (modelyear) (
+        partition north_america_recent values in ('G','H','J','K')),
+    PARTITION DEFAULT VALUES IN (default)
+  );
+

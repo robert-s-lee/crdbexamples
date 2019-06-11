@@ -87,16 +87,19 @@ _crdb() {
     cockroach init --insecure --host=localhost:${_crdb_port}
   fi
 
+  _crdb_lic
+}
+
+# setup enterprise license
+_crdb_lic () {
   # set the license and map if available
   if [ ! -z "$COCKROACH_DEV_ORG" -a ! -z "$COCKROACH_DEV_LICENSE" ]; then 
-    cockroach sql --insecure --port=${_crdb_port} -e "set cluster setting cluster.organization='$COCKROACH_DEV_ORG'; set cluster setting enterprise.license='$COCKROACH_DEV_LICENSE';"
+    cockroach sql --insecure --port=${_crdb_port:-26257} -e "set cluster setting cluster.organization='$COCKROACH_DEV_ORG'; set cluster setting enterprise.license='$COCKROACH_DEV_LICENSE';"
     _crdb_maps_gcp
     _crdb_maps_aws
     _crdb_maps_azure
   fi
-
 }
-
 
 # stop and restart by looking at /_crdb.pid.instance_number
 # $1 = instance number (1 - n)
@@ -323,7 +326,7 @@ _crdb_maps_azure() {
 _crdb_whereami() {
 foo_usage() { echo "_crdb_whereami: [-h <hostname:-`hostname`] [-p <port:-26257]" 1>&2; }
 
-  local OPTIND h=${_crdb_hostname:-`hostname`} p=${_crdb_port:-26257}
+  local OPTIND h=${_crdb_host:-`hostname`} p=${_crdb_port:-26257}
   while getopts ":h:p:" o; do
     case "${o}" in
       h)
@@ -359,7 +362,7 @@ EOF
 _crdb_mypeers() {
 foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] [-c <circle:-region>] [-r random output]" 1>&2;}
 
-  local OPTIND h=${_crdb_hostname:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
+  local OPTIND h=${_crdb_host:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
   while getopts ":h:p:c:r" o; do
     case "${o}" in
       h)
@@ -392,7 +395,7 @@ left join
 on a.node_id = b.node_id
 where 
   b.args like '--http-port=%' 
-  and b.locality->>'$c' in (select locality->>'$c' from crdb_internal.kv_node_status where node_id = (select node_id::int from [show node_id])
+  and (b.locality='{}' or b.locality->>'$c' in (select locality->>'$c' from crdb_internal.kv_node_status where node_id = (select node_id::int from [show node_id]))
 )
 ;
 EOF
@@ -405,7 +408,7 @@ EOF
 _crdb_notmypeers() {
 foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] [-c <circle:-region>"] [-r random output] 1>&2;}
 
-  local OPTIND h=${_crdb_hostname:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
+  local OPTIND h=${_crdb_host:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
   while getopts ":h:p:c:r" o; do
     case "${o}" in
       h)
@@ -438,7 +441,7 @@ left join
 on a.node_id = b.node_id
 where 
   b.args like '--http-port=%' 
-  and b.locality->>'$c' not in (select locality->>'$c' from crdb_internal.kv_node_status where node_id =(select node_id::int from [show node_id]))
+  and (b.locality='{}' or b.locality->>'$c' not in (select locality->>'$c' from crdb_internal.kv_node_status where node_id =(select node_id::int from [show node_id])))
 ;
 EOF
 }
@@ -462,11 +465,17 @@ _crdb_ping() {
 
   rm /tmp/_crdb_ping.* 2>/dev/null
   _crdb_notmypeers | while read node_id addr http_port az region; do
-    addr_ip=`echo $addr | awk -F: '{print $1}'`
-    # echo "$node_id $addr $addr_ip $http_port $az $region"
-    ping -c 3 $addr_ip | tail -1 | awk -F'[ /]' '{print r " " $8}' r=$region >> /tmp/_crdb_ping.$node_id
+    if [ "$az" != "NULL" ]  || [ "$region" != "NULL" ]; then
+      addr_ip=`echo $addr | awk -F: '{print $1}'`
+      echo "$node_id $addr $addr_ip $http_port $az $region"
+      ping -c 3 $addr_ip | tail -1 | awk -F'[ /]' '{print r " " $8}' r=$region >> /tmp/_crdb_ping.$node_id
+    fi
   done  
-  cat /tmp/_crdb_ping.* | awk '{s[$1]=s[$1]+$2; c[$1]=c[$1]+1;} END {for (key in s) {print key " " s[key]/c[key] " " s[key] " " c[key];}}' | sort -k2,4 > /tmp/_crdb_ping
+  if [ `ls /tmp/_crdb_ping.* 2>/dev/null| wc -l` -gt 0 ]; then
+    awk '{s[$1]=s[$1]+$2; c[$1]=c[$1]+1;} END {for (key in s) {print key " " s[key]/c[key] " " s[key] " " c[key];}}' | sort -k2,4 > /tmp/_crdb_ping
+  else
+    echo "No locality defined.  /tmp/_crdb_ping not generated"
+  fi
 }
 
 # lease_preferences='[[+zone=us-east-1b], [+zone=us-east-1a]]';
