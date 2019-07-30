@@ -17,7 +17,7 @@
 # examples to setup without locality
 #   _crdb; _crdb; _crdb
 _crdb() {
-  foo_usage() { echo "_crdb: [-c <aws|gcp>] [-j {use join instead of init}]" 1>&2; return; }
+  foo_usage() { echo "_crdb: [-c <aws|gcp>] [-j {use init instead of join}]" 1>&2; return; }
 
   _crdb_instance=${_crdb_instance:-1}
   local _crdb_port=${_crdb_port:-26257}
@@ -29,7 +29,7 @@ _crdb() {
   local _http_port
   local _loc
 
-  local OPTIND c i="init"
+  local OPTIND c i="join"
   while getopts ":ic:" o; do
     case "${o}" in
       c)
@@ -45,11 +45,12 @@ _crdb() {
   done
   shift $((OPTIND-1))
 
-  # init style 
-  if [ "$i" ]; then
+  # init style require all nodes (or at least 3 initial) 
+  if [ "$i" == "init" ]; then
     _crdb_join=`echo "--join=" | awk -v n=$# -v pg=$_crdb_port '{for (i=0;i <n; i++) {j=j c "localhost:" pg + 2 * i; c=",";}; print $1 j}'`
   fi
 
+  # loop thru all args
   while [ 1 ]; do
     _loc=$1
     _crdb_count=$(($_crdb_instance-1))
@@ -65,9 +66,11 @@ _crdb() {
         echo $_loc
     fi
 
-    # locality and join command options
-    if [ ! -z "$_loc" ]; then _crdb_locality="--locality=$_loc"; fi
-    # don't change if using init
+    # locality
+    if [ ! -z "$_loc" ]; then 
+      _crdb_locality="--locality=$_loc"
+    fi
+    # join 2nd instance and above to the first
     if [ "${i}" == "join" -a "$_crdb_instance" != "1" ]; then 
       _crdb_join="--join=localhost:$_crdb_port"
     fi
@@ -86,8 +89,6 @@ _crdb() {
   if [ "${i}" == "init" ]; then
     cockroach init --insecure --host=localhost:${_crdb_port}
   fi
-
-  _crdb_lic
 }
 
 # setup enterprise license
@@ -162,12 +163,13 @@ _crdb_locs() {
   cockroach sql --insecure --format tsv -e "select node_id, concat_ws('','${1:-region}=',locality->>'${1:-region}') loc from crdb_internal.kv_node_status" | tail -n +2 
 }
 
+# $1=db $2=table $3=table|index
 _crdb_show_ranges() {
-cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${_crdb_port:-26257}/${_crdb_db:-defaultdb}" <<EOF
+cockroach sql -u root --insecure --url "postgresql://${_crdb_host:-127.0.0.1}:${_crdb_port:-26257}/${1:-defaultdb}" <<EOF
 select start_key, end_key, range_id,lease_holder, array_agg(node_id) node_id, array_agg(az) az
 from 
   ( select start_key,end_key, range_id,lease_holder,unnest(replicas) as replicas 
-    from [show experimental_ranges from table ${crdbb_db:-defaultdb}.${1:-usertable}]) a, 
+    from [show experimental_ranges from ${3:-table} ${1:-defaultdb}.${2:-usertable}]) a, 
   ( select node_id, locality->>'zone' az, locality->>'region' region
     from crdb_internal.kv_node_status) b 
 where a.replicas=b.node_id
@@ -206,7 +208,7 @@ EOF
 	
 # show under replicated or un-available replics
 _crdb_show_ranges_regions() {
-  foo_usage() { echo "_crdb_show_ranges_regions: [-t <tablename:-defaultdb>] [-r <replica count:-3]" 1>&2; return; }
+  foo_usage() { echo "_crdb_show_ranges_regions: [-t <tablename:-usertable>] [-r <replica count:-3]" 1>&2; return; }
 
   local OPTIND t=usertable r=3
   while getopts ":t:r:" o; do
@@ -228,7 +230,7 @@ _crdb_show_ranges_regions() {
 select start_key,end_key, range_id, lease_holder, array_agg(node_id) node_id, array_agg(region) region
 from 
   ( select start_key,end_key,range_id,lease_holder,unnest(replicas) as replicas 
-    from [show experimental_ranges from table ${crdbb_db:-defaultdb}.${t}]) a, 
+    from [show experimental_ranges from table ${_crdbb_db:-defaultdb}.${t}]) a, 
   ( select node_id, locality->>'az' az, locality->>'region' region
     from crdb_internal.kv_node_status) b 
 where a.replicas=b.node_id
