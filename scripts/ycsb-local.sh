@@ -9,33 +9,25 @@ export _ycsb_insertcount=10000
 export COCKROACH_DEV_ORG='Cockroach Labs Training'
 export COCKROACH_DEV_LICENSE='crl-0-EIDA4OgGGAEiF0NvY2tyb2FjaCBMYWJzIFRyYWluaW5n'
 
-# 4 DC - 3 AZ per DC 3 way replicas
-_crdb -c gcp europe-west1-b europe-west1-b  \
-             europe-west1-c europe-west1-c  \
-             europe-west1-d europe-west1-d  \
-             europe-west2-a                 \
-             europe-west2-b europe-west2-b  \
-             europe-west2-c                 \
-             europe-west3-a                 \
-             europe-west3-b                 \
-             europe-west3-c 
+# AWS
+_crdb -c aws eu-west-1a eu-west-1b eu-west-1c 
+_crdb -c aws eu-west-2a eu-west-2b eu-west-2c 
+_crdb -c aws eu-central-1a eu-central-1b eu-central-1c 
 
-_crdb -c aws eu-west-1a eu-west-1a \
-             eu-west-1b eu-west-1b \
-             eu-west-1c eu-west-1c \
-            eu-west-2a \
-            eu-west-2b eu-west-2b \
-            eu-west-2c \
-            eu-central-1a \
-            eu-central-1b \
-            eu-central-1c 
+_crdb -c aws ap-southeast-2a ap-southeast-2b ap-southeast-2c
 
-_crdb -c gcp europe-west1-b europe-west2-a europe-west3-a europe-west1-c
-_crdb -c gcp europe-west1-b europe-west2-a europe-west3-a europe-west4-a europe-west6-a europe-west1-c
+_crdb -c aws us-east-2a us-east-2b us-east-2c
+# GCP
+_crdb -c gcp europe-west1-b europe-west1-c europe-west1-d 
+_crdb -c gcp europe-west2-a europe-west2-b europe-west2-c
+_crdb -c gcp europe-west3-a europe-west3-b europe-west3-c 
 
-_crdb -c gcp us-west2-a us-west2-b us-west1-a us-west1-b us-east1-b us-east1-c us-east4-a us-east4-b
-_crdb -c gcp us-west2-a us-west1-a us-east1-b us-east4-a
-_crdb -c gcp us-west2-a us-west1-a us-east1-a
+_crdb -c gcp us-east1-a us-east1-b us-east1-c             # virgina
+_crdb -c gcp us-east4-a us-east4-b us-east4-c
+_crdb -c gcp us-central1-a us-central1-b us-central1-c
+_crdb -c gcp us-west1-a us-west1-b us-west1-c             # portland 
+_crdb -c gcp us-west2-a us-west2-a us-east2-a
+
 
 # setup the schema with default 5 way replica 
 _crdb_haproxy
