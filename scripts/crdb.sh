@@ -64,6 +64,8 @@ _crdb() {
     elif [ "$c" = "aws" ]; then
         _loc=`echo $_loc | awk -F'-' '{print "region=" substr($0,1,length($0)-1) ",cloud=" c ",zone=" $0}' c=$c`
         echo $_loc
+    else
+        _loc=`echo $_loc | awk -F'-' '{print "region=" $1 "-" $2 ",cloud=" c ",zone=" $0}' c=$c`
     fi
 
     # locality
@@ -230,7 +232,7 @@ _crdb_show_ranges_regions() {
 select start_key,end_key, range_id, lease_holder, array_agg(node_id) node_id, array_agg(region) region
 from 
   ( select start_key,end_key,range_id,lease_holder,unnest(replicas) as replicas 
-    from [show experimental_ranges from table ${_crdbb_db:-defaultdb}.${t}]) a, 
+    from [show experimental_ranges from table ${_crdb_db:-defaultdb}.${t}]) a, 
   ( select node_id, locality->>'az' az, locality->>'region' region
     from crdb_internal.kv_node_status) b 
 where a.replicas=b.node_id
@@ -245,6 +247,7 @@ _crdb_maps() {
   _crdb_maps_aws
   _crdb_maps_gcp
   _crdb_maps_azure
+  _crdb_maps_others
 }
 
 # coordinates from https://www.cockroachlabs.com/docs/stable/enable-node-map.html
@@ -279,9 +282,9 @@ _crdb_maps_gcp() {
 	'region', 'us-west2', 34.0522, -118.2437
 	'region', 'northamerica-northeast1', 56.130366, -106.346771
 	'region', 'europe-west1', 50.44816, 3.81886
+	'region', 'europe-west2', 51.507351, -0.127758
 	'region', 'europe-west3', 50.110922, 8.682127
 	'region', 'europe-west4', 53.4386, 6.8355
-	'region', 'europe-west2', 51.507351, -0.127758
 	'region', 'europe-west6', 47.3769, 8.5417
 	'region', 'asia-east1', 24.0717, 120.5624
 	'region', 'asia-northeast1', 35.689487, 139.691706
@@ -322,6 +325,13 @@ _crdb_maps_azure() {
 	'region', 'koreasouth', 35.1796, 129.0756
 	'region', 'francecentral', 46.3772, 2.3730
 	'region', 'francesouth', 43.8345, 2.1972
+	EOF
+}
+
+_crdb_maps_others() {
+  cat <<-EOF | awk '{print "upsert into system.locations VALUES (" $0" );"}' | cockroach sql --insecure --host ${_crdb_host:-127.0.0.1}
+	'region', 'us-west2', 47.2343, -119.8526
+	'region', 'us-central2', 33.0198, -96.6989
 	EOF
 }
 

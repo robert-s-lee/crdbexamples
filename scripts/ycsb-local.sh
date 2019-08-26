@@ -29,6 +29,10 @@ _crdb -c gcp us-west1-a us-west1-b us-west1-c             # portland
 _crdb -c gcp us-west2-a us-west2-a us-east2-a
 
 
+# demo for corelogic
+_crdb -c gcp us-west1-a us-west1-b us-west1-c us-central1-a us-central1-b us-central1-c # portland 
+_crdb -c ntt us-west2-a us-central2-a  # ntt
+
 # setup the schema with default 5 way replica 
 _crdb_haproxy
 haproxy -D -f ./haproxy.cfg &
