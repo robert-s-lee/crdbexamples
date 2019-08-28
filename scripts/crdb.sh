@@ -64,7 +64,7 @@ _crdb() {
     elif [ "$c" = "aws" ]; then
         _loc=`echo $_loc | awk -F'-' '{print "region=" substr($0,1,length($0)-1) ",cloud=" c ",zone=" $0}' c=$c`
         echo $_loc
-    else
+    elif [ "$c" != "" ]; then
         _loc=`echo $_loc | awk -F'-' '{print "region=" $1 "-" $2 ",cloud=" c ",zone=" $0}' c=$c`
     fi
 
