@@ -3,7 +3,7 @@ export ver=v19.1.4
 export COCKROACH_DEV_ORG='Cockroach Labs Training'
 export COCKROACH_DEV_LICENSE='crl-0-EIDA4OgGGAEiF0NvY2tyb2FjaCBMYWJzIFRyYWluaW5n'
 
-roachprod create robert-ycsb -c gce -n 4
+roachprod create robert-ycsb -c gce -n 4 --gce-machine-type n1-standard-4
 
 roachprod stage $f release $ver
 roachprod start $f:1-3
