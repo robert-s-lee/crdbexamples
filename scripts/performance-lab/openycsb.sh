@@ -21,7 +21,7 @@ tmux
 # tmux session 1
 # cockroach ycsb on database ycsb
 cockroach workload init ycsb --drop --initial-rows 1000000
-duration=300
+duration=60
 s=crdbycsb
 for d in zipfian uniform; do  # distribution
   for c in 1 3 6 9 12 15 18 21 24 48 96; do # concurrency
