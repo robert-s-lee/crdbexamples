@@ -3,12 +3,13 @@ export ver=v19.1.4
 export COCKROACH_DEV_ORG='Cockroach Labs Training'
 export COCKROACH_DEV_LICENSE='crl-0-EIDA4OgGGAEiF0NvY2tyb2FjaCBMYWJzIFRyYWluaW5n'
 
-roachprod create robert-ycsb -c gce -n 4 --gce-machine-type n1-standard-4
+roachprod create $f -c gce -n 4 --gce-machine-type n1-standard-4
 
 roachprod stage $f release $ver
 roachprod start $f:1-3
 roachprod install $f:4 haproxy
 roachprod run $f:4 -- "./cockroach gen haproxy --host $f-0001 --insecure; haproxy -D -f haproxy.cfg &"
+roachprod run $f -- "sudo apt-get -y install sysstat"
 
 # TODO stage prometheus or sysstats
 
@@ -33,7 +34,11 @@ for d in zipfian uniform; do  # distribution
   sleep 60
 done
 # tmux session 2
-export PATH=./:$PATH
+iostat -xzc 5
+# tmux session 3
+vmstat 5
+# tmux session 4
+cockroach sql --insecure
 
 
 # ##################################################################
@@ -57,8 +62,9 @@ roachprod run $f -- 'curl -O --location  https://dev.mysql.com/get/Downloads/Con
 
 # create the table
 # cockroach start --insecure --background
+export PATH=~/:$PATH
+tmux
 cat <<EOF | cockroach sql --insecure
-create database if not exists ycsb;
 CREATE TABLE usertable (
 	YCSB_KEY VARCHAR(255) PRIMARY KEY,
 	FIELD0 TEXT, FIELD1 TEXT,
@@ -70,7 +76,7 @@ CREATE TABLE usertable (
 EOF
 
 # load 1M rows
-./cockroach sql --insecure -e "truncate usertable"
+cockroach sql --insecure -e "truncate usertable"
 cd ycsb-jdbc-binding-0.16.0-SNAPSHOT/
 bin/ycsb load jdbc -s -P workloads/workloada -p threadcount=8 -p db.driver=org.postgresql.Driver -p db.url="jdbc:postgresql://127.0.0.1:26257/defaultdb?autoReconnect=true&sslmode=disable&ssl=false&reWriteBatchedInserts=true" -p db.user=root -p db.passwd="" -p db.batchsize=128  -p jdbc.fetchsize=32 -p jdbc.autocommit=true -p jdbc.batchupdateapi=true -p recordcount=1000000 | tee  cockraochdb.batchrewrite.log
 

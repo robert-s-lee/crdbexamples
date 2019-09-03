@@ -3,22 +3,40 @@ export ver=v19.1.4
 export COCKROACH_DEV_ORG='Cockroach Labs Training'
 export COCKROACH_DEV_LICENSE='crl-0-EIDA4OgGGAEiF0NvY2tyb2FjaCBMYWJzIFRyYWluaW5n'
 
-roachprod create robert-ycsb -c gce -n 4
+roachprod create robert-n1s4 -c gce -n 1
+roachprod create robert-n1s16 -c gce -n 1 --gce-machine-type n1-standard-16
+
+roachprod stage robert-n1s4 release $ver
+roachprod stage robert-n1s16 release $ver
 
 roachprod stage $f release $ver
 roachprod start $f:1-3
 roachprod install $f:4 haproxy
 roachprod run $f:4 -- "./cockroach gen haproxy --host $f-0001 --insecure; haproxy -D -f haproxy.cfg &"
 
+cd /mnt/data1
 duration=60
 s=seqwrite
 for d in 32kiB 96Kib; do  # distribution
-  for c in 1 2 3 4 5 6 7 8; do # concurrency
+  for c in 1; do # concurrency
 cockroach systembench seqwrite --concurrency $c --duration ${duration}s --write-size $d >$s.$d.$c.log 2>&1
   sleep 15
   done
   sleep 60
 done
+
+
+sysbench
+
+cd /mnt/data1
+curl -s https://packagecloud.io/install/repositories/akopytov/sysbench/script.deb.sh | sudo bash
+sudo apt -y install sysbench make automake libtool pkg-config libaio-dev libmysqlclient-dev libssl-dev libpq-dev
+sysbench fileio --file-total-size=8G --file-num=64 prepare > IO_LOAD_results
+
+for each in 1 4 8 16 32 64; do sysbench fileio --file-total-size=8G --file-test-mode=rndwr --time=240 --max-requests=0 --file-block-size=32K --file-num=64 --file-fsync-all --threads=$each run; sleep 10; done > IO_WR_results
+for each in 1 4 8 16 32 64; do sysbench fileio --file-total-size=8G --file-test-mode=rndwr --time=240 --file-block-size=32K --file-num=64 --file-fsync-all --threads=$each run; sleep 10; done > IO_WR_results
+
+
 
 # TODO stage prometheus or sysstats
 
@@ -31,7 +49,7 @@ tmux
 # tmux session 1
 # cockroach ycsb on database ycsb
 cockroach workload init ycsb --drop --initial-rows 1000000
-duration=300
+duration=60
 s=crdbycsb
 for d in zipfian uniform; do  # distribution
   for c in 1 3 6 9 12 15 18 21 24 48 96; do # concurrency
