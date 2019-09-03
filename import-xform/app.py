@@ -1,7 +1,6 @@
 # pip3 install gunicorn boto3 smart-open
 # gunicorn app 
 
-import filelike
 from cgi import parse_qs, escape
 from smart_open import open
 import boto3
