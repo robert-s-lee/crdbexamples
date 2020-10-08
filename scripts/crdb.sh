@@ -162,7 +162,10 @@ _crdb_replica () {
 # 2	region=eu-west-1
 # 3	region=eu-west-1
 _crdb_locs() {
-  cockroach sql --insecure --format tsv -e "select node_id, concat_ws('','${1:-region}=',locality->>'${1:-region}') loc from crdb_internal.kv_node_status" | tail -n +2 
+  cockroach sql --insecure --format tsv <<EOF | tail -n +2
+  with kns as (select address,args,node_id,('{' || REGEXP_REPLACE(locality,'(.*?)=(.*?)(,|$)','"\1":"\2"\3','g') || '}')::JSON as locality from crdb_internal.kv_node_status 
+  ) select node_id, concat_ws('','${1:-region}=',locality->>'${1:-region}') loc from kns; 
+EOF
 }
 
 # $1=db $2=table $3=table|index
@@ -427,7 +430,7 @@ _crdb_notmypeers() {
 foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] [-c <circle:-region>"] [-r random output] 1>&2;}
 
   local OPTIND h=${_crdb_host:-`hostname`} p=${_crdb_port:-26257} c=region r="-g"
-  while getopts ":h:p:c:r" o; do
+  while getopts ":h:p:cr" o; do
     case "${o}" in
       h)
         h="${OPTARG}"
