@@ -17,7 +17,7 @@ roachprod run $f -- "curl -O --location https://raw.githubusercontent.com/robert
 
 # setup the schema 
 roachprod run $f:1 -- "PATH=~/:\$PATH; cockroach sql --insecure -e \"SET CLUSTER SETTING cluster.organization='$COCKROACH_DEV_ORG'; SET CLUSTER SETTING enterprise.license='$COCKROACH_DEV_LICENSE'\""
-roachprod run $f:1 -- "PATH=~/:\$PATH;. ~/crdb.sh; _crdb_replicas=${_crdb_replicas} _crdb_num_replicas; _crdb_maps; . ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.18.0-SNAPSHOT; _ycsb_replicas=${_ycsb_replicas} _ycsb_init; _ycsb_part; _ycsb_lease"
+roachprod run $f:1 -- "PATH=~/:\$PATH;. ~/crdb.sh; _crdb_replicas=${_crdb_replicas} _crdb_num_replicas; _crdb_maps; . ~/ycsb.sh; YCSB=ycsb-jdbc-binding-0.18.0-SNAPSHOT; _ycsb_replicas=${_ycsb_replicas} _ycsb_init; _ycsb_part;"
 
 # get distance to regions, set haproxy, replica and leaseholder to two nearest regions
 # TODO: locality detection borken dur to locality field no longer being JSON
