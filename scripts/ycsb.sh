@@ -39,6 +39,11 @@ _ycsb_bg() {
 
   if [ "$1" == "init" ]; then _ycsb_init; return 0; fi
 
+  echo "_ycsb_node.      =$_ycsb_node"
+  echo "_ycsb_zeropadding=$_ycsb_zeropadding"
+  echo "_ycsb_insertcount=$_ycsb_insertcount"
+  echo "_ycsb_recordcount=$_ycsb_recordcount"
+
   _ycsb_delete_scratch
 
   while [ 1 ]; do
@@ -52,6 +57,7 @@ _ycsb_bg() {
     -p db.passwd=${_ycsb_passwd:-""} \
     -p db.driver=org.postgresql.Driver \
     -p db.url=jdbc:${_ycsb_jdbc:-postgresql}://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}?reWriteBatchedInserts=true\&ApplicationName=${_ycsb_db:-defaultdb}_${2}_${_ycsb_insertstart} \
+    -p db.dialect=${_ycsb_dbdialect:-} \ 
     -p jdbc.batchupdateapi=true \
     -p db.batchsize=${_ycsb_batchsize:-128} \
     -p fieldcount=${_ycsb_fieldcount:-10} \
@@ -160,8 +166,14 @@ _ycsb_delete_scratch() {
   fi
 }
 
+# get this node's node id
 _ycsb_nodeid() {
 cockroach sql -u root --insecure --format csv --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "show node_id" | tail -n +2
+}
+
+# get node id from another region
+_ycsb_nodeid_alt() {
+  _crdb_notmypeers -r | head -n 1 | awk '{print $1}'
 }
 
 # display ranges
