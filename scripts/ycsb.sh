@@ -58,7 +58,7 @@ _ycsb_bg() {
     -p db.passwd=${_ycsb_passwd:-""} \
     -p db.driver=org.postgresql.Driver \
     -p db.url=jdbc:${_ycsb_jdbc:-postgresql}://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}?reWriteBatchedInserts=true\&ApplicationName=${_ycsb_db:-defaultdb}_${2}_${_ycsb_insertstart} \
-    -p db.dialect="${_ycsb_dbdialect}" \ 
+    -p db.dialect="${_ycsb_dbdialect}" \
     -p jdbc.batchupdateapi=true \
     -p db.batchsize=${_ycsb_batchsize:-128} \
     -p fieldcount=${_ycsb_fieldcount:-10} \
@@ -144,7 +144,7 @@ _ycsb() {
     -p db.passwd=${_ycsb_passwd:-""} \
     -p db.driver=org.postgresql.Driver \
     -p db.url=jdbc:${_ycsb_jdbc:-postgresql}://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}?reWriteBatchedInserts=true\&ApplicationName=${_ycsb_db:-defaultdb}_${2}_${_ycsb_insertstart} \
-    -p db.dialect="${_ycsb_dbdialect}" \ 
+    -p db.dialect="${_ycsb_dbdialect}" \
     -p jdbc.batchupdateapi=true \
     -p db.batchsize=${_ycsb_batchsize:-128} \
     -p fieldcount=${_ycsb_fieldcount:-10} \
