@@ -112,7 +112,7 @@ _ycsb() {
   local _ycsb_zeropadding
   local _ycsb_recordcount=${_ycsb_recordcount:-0}
   local _ycsb_insertcount=${_ycsb_insertcount:-100000}
-  local _ycsb_node=${_ycsb_node:-`ycsb_nodeid`}
+  local _ycsb_node=${_ycsb_node:-`_ycsb_nodeid`}
   local _ycsb_workload=${_ycsb_workload:-$2}
 
   _ycsb_insertstart=$(($_ycsb_insertcount * ($_ycsb_node - 1)))
@@ -124,6 +124,11 @@ _ycsb() {
   if [ ! `which cockroach` ]; then echo "cockroach not in PATH"; return 1; fi
 
   if [ "$1" == "init" ]; then _ycsb_init; return 0; fi
+
+  echo "_ycsb_node.      =$_ycsb_node"
+  echo "_ycsb_zeropadding=$_ycsb_zeropadding"
+  echo "_ycsb_insertcount=$_ycsb_insertcount"
+  echo "_ycsb_recordcount=$_ycsb_recordcount"
 
   _ycsb_delete_scratch
 
@@ -137,6 +142,7 @@ _ycsb() {
     -p db.passwd=${_ycsb_passwd:-""} \
     -p db.driver=org.postgresql.Driver \
     -p db.url=jdbc:${_ycsb_jdbc:-postgresql}://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}?reWriteBatchedInserts=true\&ApplicationName=${_ycsb_db:-defaultdb}_${2}_${_ycsb_insertstart} \
+    -p db.dialect=${_ycsb_dbdialect:-} \ 
     -p jdbc.batchupdateapi=true \
     -p db.batchsize=${_ycsb_batchsize:-128} \
     -p fieldcount=${_ycsb_fieldcount:-10} \
