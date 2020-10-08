@@ -327,7 +327,7 @@ _ycsb_lease() {
       node_id=$(( $node_id - 1 ))
       echo  "$node_id $addr $http_port $az $region"
       sql="ALTER PARTITION user$node_id OF TABLE ${_ycsb_db:-defaultdb}.usertable \
-        CONFIGURE ZONE USING constraints='$replica_order', lease_preferences='$lease_order';"
+        CONFIGURE ZONE USING constraints='$replica_order', lease_preferences='$lease_order', num_replicas = ${_ycsb_replicas:-3};"
       echo $sql
       cockroach sql -u root --insecure --url "postgresql://${_ycsb_host:-127.0.0.1}:${_ycsb_port:-26257}/${_ycsb_db:-defaultdb}" -e "$sql"
     fi

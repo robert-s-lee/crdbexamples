@@ -492,8 +492,9 @@ _crdb_ping() {
       ping -c 3 $addr_ip | tail -1 | awk -F'[ /]' '{print r " " $8}' r=$region >> /tmp/_crdb_ping.$node_id
     fi
   done  
+  # print region average, total, count
   if [ `ls /tmp/_crdb_ping.* 2>/dev/null| wc -l` -gt 0 ]; then
-    awk '{s[$1]=s[$1]+$2; c[$1]=c[$1]+1;} END {for (key in s) {print key " " s[key]/c[key] " " s[key] " " c[key];}}' | sort -k2,4 > /tmp/_crdb_ping
+    cat /tmp/_crdb_ping.* | awk '{s[$1]=s[$1]+$2; c[$1]=c[$1]+1;} END {for (key in s) {print key " " s[key]/c[key] " " s[key] " " c[key];}}' | sort -k2,4 > /tmp/_crdb_ping
   else
     echo "No locality defined.  /tmp/_crdb_ping not generated"
   fi
