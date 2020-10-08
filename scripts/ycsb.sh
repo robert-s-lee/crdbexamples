@@ -26,7 +26,7 @@ _ycsb_bg() {
   local _ycsb_zeropadding
   local _ycsb_recordcount=${_ycsb_recordcount:-0}
   local _ycsb_insertcount=${_ycsb_insertcount:-100000}
-  local _ycsb_node=${_ycsb_node:-`ycsb_nodeid`}
+  local _ycsb_node=${_ycsb_node:-`_ycsb_nodeid`}
   local _ycsb_workload=${_ycsb_workload:-$2}
 
   _ycsb_insertstart=$(($_ycsb_insertcount * ($_ycsb_node - 1)))
