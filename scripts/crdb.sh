@@ -356,13 +356,16 @@ foo_usage() { echo "_crdb_whereami: [-h <hostname:-`hostname`] [-p <port:-26257]
   shift $((OPTIND-1))
 
   cockroach sql -u root --format tsv --insecure --url "postgresql://${h}:${p}" <<EOF | tail -n +2
+ with kns as (
+  select address,args,node_id,('{' || REGEXP_REPLACE(locality,'(.*?)=(.*?)(,|$)','"\1":"\2"\3','g') || '}')::JSON as locality from crdb_internal.kv_node_status 
+  )
  select 
   b.node_id, b.address, COALESCE(regexp_extract(b.args,'--http-port=(.*)'),a.args) http_port, 
   b.locality->>'zone' az, b.locality->>'region' region
 from 
-  (select node_id, '26257' args from crdb_internal.kv_node_status) a
+  (select node_id, '26257' args from kns) a
 left join 
-  (select node_id, address, jsonb_array_elements_text(args) args, locality from crdb_internal.kv_node_status) b
+  (select node_id, address, jsonb_array_elements_text(args) args, locality from kns) b
 on a.node_id = b.node_id
 where 
   b.args like '--http-port=%' 
@@ -397,17 +400,20 @@ foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] 
   done
   shift $((OPTIND-1))
   cockroach sql -u root --format tsv --insecure --url "postgresql://${h}:${p}" <<EOF | tail -n +2 | sort ${r}
+with kns as (
+  select address,args,node_id,('{' || REGEXP_REPLACE(locality,'(.*?)=(.*?)(,|$)','"\1":"\2"\3','g') || '}')::JSON as locality from crdb_internal.kv_node_status 
+  )  
  select 
   b.node_id, b.address, COALESCE(regexp_extract(b.args,'--http-port=(.*)'),a.args) http_port, 
   b.locality->>'zone' az, b.locality->>'region' region
 from 
-  (select node_id, '26257' args from crdb_internal.kv_node_status) a
+  (select node_id, '26257' args from kns) a
 left join 
-  (select node_id, address, jsonb_array_elements_text(args) args, locality from crdb_internal.kv_node_status) b
+  (select node_id, address, jsonb_array_elements_text(args) args, locality from kns) b
 on a.node_id = b.node_id
 where 
   b.args like '--http-port=%' 
-  and (b.locality='{}' or b.locality->>'$c' in (select locality->>'$c' from crdb_internal.kv_node_status where node_id = (select node_id::int from [show node_id]))
+  and (b.locality='{}' or b.locality->>'$c' in (select locality->>'$c' from kns where node_id = (select node_id::int from [show node_id]))
 )
 ;
 EOF
@@ -443,17 +449,20 @@ foo_usage() { echo "_crdb_mypeers: [-h <hostname:-`hostname`] [-p <port:-26257] 
   done
   shift $((OPTIND-1))
   cockroach sql -u root --format tsv --insecure --url "postgresql://${h}:${p}" <<EOF | tail -n +2 | sort ${r}
+  with kns as (
+  select address,args,node_id,('{' || REGEXP_REPLACE(locality,'(.*?)=(.*?)(,|$)','"\1":"\2"\3','g') || '}')::JSON as locality from crdb_internal.kv_node_status 
+  )  
  select 
   b.node_id, b.address, COALESCE(regexp_extract(b.args,'--http-port=(.*)'),a.args) http_port, 
   b.locality->>'zone' az, b.locality->>'region' region
 from 
-  (select node_id, '26257' args from crdb_internal.kv_node_status) a
+  (select node_id, '26257' args from kns) a
 left join 
-  (select node_id, address, jsonb_array_elements_text(args) args, locality from crdb_internal.kv_node_status) b
+  (select node_id, address, jsonb_array_elements_text(args) args, locality from kns) b
 on a.node_id = b.node_id
 where 
   b.args like '--http-port=%' 
-  and (b.locality='{}' or b.locality->>'$c' not in (select locality->>'$c' from crdb_internal.kv_node_status where node_id =(select node_id::int from [show node_id])))
+  and (b.locality='{}' or b.locality->>'$c' not in (select locality->>'$c' from kns where node_id =(select node_id::int from [show node_id])))
 ;
 EOF
 }
